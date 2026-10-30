@@ -233,6 +233,38 @@ def publish_build(build_dir: Path) -> None:
     log("旧图片清理完成")
 
 
+def prune_live() -> int:
+    """兜底清理：删除 ecmwf/ 下所有不属于当前 manifest 的 PNG，保证只保留最新场次。"""
+    removed = 0
+    for sub in LIVE_DIR.iterdir():
+        if not sub.is_dir():
+            continue
+        manifest = sub / "manifest.json"
+        if not manifest.is_file():
+            for png in sub.glob("*.png"):
+                try:
+                    png.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+            continue
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        keep = {str(frame.get("file") or "") for frame in data.get("frames") or []}
+        for png in sub.glob("*.png"):
+            if png.name not in keep:
+                try:
+                    png.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+    if removed:
+        log("清理旧场次图片 %d 张（只保留最新场次）" % removed)
+    return removed
+
+
 def run_once(force: bool = False, dry_run: bool = False) -> bool:
     state = read_state()
     current = live_run()
@@ -293,6 +325,7 @@ def run_once(force: bool = False, dry_run: bool = False) -> bool:
 
     validate_build(BUILD_DIR, latest_text)
     publish_build(BUILD_DIR)
+    prune_live()
 
     state.update(
         {

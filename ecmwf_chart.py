@@ -694,7 +694,7 @@ def finish_figure(fig, ax, cf, colorbar_ticks, colorbar_labels, colorbar_title,
     cb.set_ticklabels(colorbar_labels)
     cb.set_label(colorbar_title, fontsize=8, labelpad=6)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=160, facecolor="white")
+    fig.savefig(out_path, dpi=140, facecolor="white")
     log("已生成 %s（+%dh，%s）" % (out_path.name, lead, valid.strftime("%Y/%m/%d %H UTC")))
 
 
