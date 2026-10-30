@@ -36,12 +36,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -329,18 +331,19 @@ def probe_run(run: str) -> bool:
 
 
 def latest_run() -> str:
-    """选最新且已经更新到 +240h 的起报场。
+    """选最新且已经更新到 +240h 的 00Z / 12Z 起报场。
 
-    ECMWF 新场次刚出时往往只有前面一段数据，若直接使用会生成大量空白尾帧，
-    所以这里跳过还没更新完整的场次，找不到完整场次时再退回最新的可用场次。
+    只使用 00Z 与 12Z 两个主时次；ECMWF 新场次刚出时往往只有前面一段数据，
+    若直接使用会生成大量空白尾帧，所以这里跳过还没更新完整的场次，
+    找不到完整场次时再退回最新的可用场次。
     """
     now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
-    block = now.replace(hour=(now.hour // 6) * 6)
+    block = now.replace(hour=(now.hour // 12) * 12)
     fallback = ""
-    for offset in range(0, 36, 6):
+    for offset in range(0, 96, 12):
         candidate = block - timedelta(hours=offset)
         run = candidate.strftime("%Y-%m-%dT%H:00")
-        log("检查起报场 %s" % run)
+        log("检查起报场 %s（仅 00Z/12Z）" % run)
         state = probe_run_state(run)
         if state == "full":
             log("使用起报场 %s" % run)
@@ -443,19 +446,41 @@ def fetch_group(run: str, variables: list[str], group_no: int,
     return merged
 
 
+FETCH_WORKERS = max(1, int(os.environ.get("BAMC_FETCH_WORKERS", "3")))
+
+
 def fetch_grid(run: str, domain_name: str, groups: list[list[str]]) -> dict:
-    log("请求 ECMWF IFS 网格：%s（%d 组）" % (domain_name, len(groups)))
+    """并发下载所有（变量组 × 分块）；返回按组顺序合并后的网格。"""
+    d = DOMAINS[domain_name]
+    lats, lons = grid_points(d["fetch_step"], domain_name)
+    points = [(la, lo) for la in lats for lo in lons]
+    chunks = [points[i:i + CHUNK_POINTS] for i in range(0, len(points), CHUNK_POINTS)]
+    total_groups = len(groups)
+    log("请求 ECMWF IFS 网格：%s（%d 组 × %d 块，%d 并发）"
+        % (domain_name, total_groups, len(chunks), FETCH_WORKERS))
     started = time.time()
-    parts: dict[int, list[dict]] = {}
-    # Open-Meteo 对并发很敏感；240h 数据量变大后用 2 路并发，避免 429。
-    with ThreadPoolExecutor(max_workers=2) as pool:
+
+    results: dict[tuple[int, int], list[dict]] = {}
+    tasks = []
+    for gi, variables in enumerate(groups):
+        for part, chunk in enumerate(chunks, 1):
+            tasks.append((gi, part, variables, chunk))
+
+    with ThreadPoolExecutor(max_workers=min(FETCH_WORKERS, len(tasks))) as pool:
         futures = {
-            pool.submit(fetch_group, run, variables, idx + 1, domain_name, len(groups)): idx
-            for idx, variables in enumerate(groups)
+            pool.submit(_fetch_chunk, run, variables, chunk, domain_name,
+                        gi + 1, total_groups, part, len(chunks)): (gi, part)
+            for gi, part, variables, chunk in tasks
         }
         for future in as_completed(futures):
-            idx = futures[future]
-            parts[idx] = future.result()
+            results[futures[future]] = future.result()
+
+    parts: dict[int, list[dict]] = {}
+    for gi in range(total_groups):
+        merged_group: list[dict] = []
+        for part in range(1, len(chunks) + 1):
+            merged_group.extend(results[(gi, part)])
+        parts[gi] = merged_group
 
     base = parts[0]
     merged: list[dict] = []
@@ -980,6 +1005,40 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
         )
 
 
+_RENDER_STATE: dict = {"grid_path": "", "grids": {}}
+_RENDER_LOCK = threading.Lock()
+
+
+def _render_worker_init(grid_path: str) -> None:
+    _RENDER_STATE["grid_path"] = grid_path
+    _RENDER_STATE["grids"] = {}
+
+
+def _render_domain(domain: str) -> dict:
+    grids = _RENDER_STATE["grids"]
+    if domain not in grids:
+        with _RENDER_LOCK:
+            if domain not in grids:
+                loaded = json.loads(Path(_RENDER_STATE["grid_path"]).read_text(encoding="utf-8"))
+                grids[domain] = loaded[domain]
+    return grids[domain]
+
+
+def _render_product_job(product_id: str, run_iso: str, out_dir_str: str) -> str:
+    """子进程任务：渲染一个产品的全部时次。"""
+    spec = PRODUCTS[product_id]
+    domain = spec.get("domain", DEFAULT_DOMAIN)
+    data = _render_domain(domain)
+    run_dt = datetime.fromisoformat(run_iso)
+    out_dir = Path(out_dir_str)
+    subdir = out_dir / spec["subdir"]
+    for lead in LEADS:
+        valid = run_dt + timedelta(hours=lead)
+        name = spec["prefix"] + valid.strftime("%Y%m%d%H") + ".png"
+        render_product(data, run_dt, lead, spec, subdir / name)
+    return product_id
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="生成华南 ECMWF IFS 预报图")
     ap.add_argument("--run", default="", help="起报场，例如 2026-10-20T00:00")
@@ -989,6 +1048,10 @@ def main() -> None:
         "--products",
         default="combined,combined_ea,t2m,h500,h500_ea,rain24,mslp,wind10,wind925,gust24,cape,kindex,pwat,rh2m,rh500,cloud",
         help="要生成的产品，逗号分隔",
+    )
+    ap.add_argument(
+        "--jobs", type=int, default=0,
+        help="并行渲染进程数；0=自动（min(4, CPU-1)），1=单进程",
     )
     args = ap.parse_args()
 
@@ -1003,11 +1066,13 @@ def main() -> None:
     required_domains = {PRODUCTS[p].get("domain", DEFAULT_DOMAIN) for p in selected}
     groups_by_domain = {"sc": VAR_GROUPS, "ea": EA_VAR_GROUPS}
     data_by_domain: dict[str, dict] = {}
+    grid_path: Path | None = None
 
     if args.input:
         loaded = json.loads(Path(args.input).read_text(encoding="utf-8"))
         if isinstance(loaded, dict) and "sc" in loaded and "ea" in loaded:
             data_by_domain = loaded
+            grid_path = Path(args.input)
             log("使用已有双区域网格：%s" % args.input)
         else:
             if isinstance(loaded, list):
@@ -1022,24 +1087,95 @@ def main() -> None:
                 run, domain_name, groups_by_domain[domain_name]
             )
 
+    cpu = os.cpu_count() or 4
+    jobs = args.jobs if args.jobs > 0 else max(1, min(4, cpu - 1))
+    jobs = max(1, min(jobs, len(selected)))
+    mode = os.environ.get("BAMC_RENDER_MODE", "auto").strip().lower()  # auto|process|thread|serial
+    if jobs <= 1:
+        mode = "serial"
+
     generated = datetime.now(TZ_CN).strftime("%Y-%m-%d %H:%M HKT")
+
+    tmp_grid: Path | None = None
+
+    def render_serial() -> None:
+        for product_id in selected:
+            spec = PRODUCTS[product_id]
+            domain_name = spec.get("domain", DEFAULT_DOMAIN)
+            data = data_by_domain[domain_name]
+            subdir = out_dir / spec["subdir"]
+            for lead in LEADS:
+                valid = run_dt + timedelta(hours=lead)
+                name = spec["prefix"] + valid.strftime("%Y%m%d%H") + ".png"
+                render_product(data, run_dt, lead, spec, subdir / name)
+
+    def prepare_grid_file() -> Path:
+        nonlocal grid_path, tmp_grid
+        if grid_path is None:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            tmp_grid = out_dir / ".grids.json"
+            log("写入临时网格供并行渲染：%s" % tmp_grid)
+            tmp_grid.write_text(json.dumps(data_by_domain), encoding="utf-8")
+            grid_path = tmp_grid
+        return Path(grid_path)
+
+    def run_tasks(pool) -> None:
+        list(pool.map(
+            _render_product_job,
+            selected,
+            [run_dt.isoformat()] * len(selected),
+            [str(out_dir)] * len(selected),
+        ))
+
+    rendered = False
+    try:
+        if mode in ("auto", "process"):
+            path = prepare_grid_file()
+            log("并行渲染（进程）：%d 个进程，%d 个产品" % (jobs, len(selected)))
+            try:
+                with ProcessPoolExecutor(
+                    max_workers=jobs,
+                    initializer=_render_worker_init,
+                    initargs=(str(path),),
+                ) as pool:
+                    run_tasks(pool)
+                rendered = True
+            except (PermissionError, OSError) as exc:
+                log("多进程不可用（%s），改用线程" % exc)
+                mode = "thread"
+
+        if not rendered and mode in ("auto", "thread"):
+            path = prepare_grid_file()
+            log("并行渲染（线程）：%d 个线程，%d 个产品" % (jobs, len(selected)))
+            _render_worker_init(str(path))
+            with ThreadPoolExecutor(max_workers=jobs) as pool:
+                run_tasks(pool)
+            rendered = True
+    finally:
+        if tmp_grid is not None and tmp_grid.exists():
+            try:
+                tmp_grid.unlink()
+            except OSError:
+                pass
+
+    if not rendered:
+        log("单进程渲染：%d 个产品" % len(selected))
+        render_serial()
+
     for product_id in selected:
         spec = PRODUCTS[product_id]
         domain_name = spec.get("domain", DEFAULT_DOMAIN)
-        data = data_by_domain[domain_name]
         subdir = out_dir / spec["subdir"]
         frames = []
         for lead in LEADS:
             valid = run_dt + timedelta(hours=lead)
             stamp = valid.strftime("%Y%m%d%H")
-            name = spec["prefix"] + stamp + ".png"
-            render_product(data, run_dt, lead, spec, subdir / name)
             frames.append(
                 {
                     "s": stamp,
                     "valid_utc": valid.strftime("%Y-%m-%d %H:%M UTC"),
                     "lead": lead,
-                    "file": name,
+                    "file": spec["prefix"] + stamp + ".png",
                 }
             )
         manifest = {

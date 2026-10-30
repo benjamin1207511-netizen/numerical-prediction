@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ECMWF 华南预报图 + 多模式系集热带气旋 —— 后端（基础仅标准库，AIFS 需要 eccodes）
+ECMWF 华南预报图 —— 后端（基础仅标准库）
 
 站点内容：
   /            16 类 ECMWF 预报图（ecmwf/ 下预生成 PNG）
-  /tc/         ECMWF ENS 51 成员热带气旋路径与强度（public/tc-data/ 下 JSON）
 
-服务端图表只读取本地 manifest、PNG；台风页通过 /api/jtwc、/api/tcmodel
-读取 GDACS 的实时 JTWC 系统，以及 ECMWF / Google / NOAA 的官方系集轨迹，
-并统一裁剪到本地关注范围。图像更新由 ecmwf_chart.py 完成，IFS 台风数据更新由
-tools/build_tc_data.py 完成。
+服务端只读取本地 manifest 与 PNG；图像由 ecmwf_chart.py 生成，
+auto_update.py 负责自动更新。
 """
 
 from __future__ import annotations
@@ -33,11 +30,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from anti_bot import RequestGuard, SECURITY_HEADERS
-from tc_direct import (
-    fetch_dates as fetch_tcmodel_dates,
-    fetch_model as tc_direct_fetch_model,
-)
-
 BASE_DIR = Path(__file__).resolve().parent
 PUBLIC_DIR = BASE_DIR / "public"
 ECMWF_DIR = BASE_DIR / "ecmwf"
@@ -46,18 +38,6 @@ ECMWF_PAGE = "https://open-meteo.com/en/docs/ecmwf-api"
 CACHE_TTL = 30
 STAMP_RE = re.compile(r"^\d{10}$")
 GUARD = RequestGuard()
-
-# JTWC's public product page is not always reachable from mainland networks.
-# GDACS republishes JTWC's active TC alerts and provides a small, stable JSON
-# endpoint, so it is used as the live relay for "which systems is JTWC tracking".
-JTWC_DOMAIN = {"west": 100.0, "south": 10.0, "east": 140.0, "north": 35.0}
-JTWC_API = (
-    "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
-    "?eventlist=TC&fromDate={start}&toDate={end}"
-)
-JTWC_TTL = 300
-_jtwc_lock = threading.Lock()
-_jtwc_cache: dict = {"at": 0.0, "payload": None, "error": None}
 
 SOURCES = [
     {
@@ -306,109 +286,6 @@ def log(msg: str) -> None:
         print("[%s] %s" % (time.strftime("%H:%M:%S"), msg), flush=True)
 
 
-def _jtwc_display_name(raw: str) -> str:
-    name = str(raw or "").strip().upper()
-    name = re.sub(r"-\d{2}$", "", name)
-    return name or "UNNAMED"
-
-
-def fetch_jtwc(force: bool = False) -> dict:
-    """Return active JTWC-sourced systems whose current centre is in our box.
-
-    GDACS is used as the relay because metoc.navy.mil is not reachable from all
-    networks.  Only systems explicitly credited to JTWC are returned, and the
-    current centre must be inside 100–140°E / 10–35°N.
-    """
-    now = time.time()
-    with _jtwc_lock:
-        cached = _jtwc_cache.get("payload")
-        if not force and cached is not None and now - float(_jtwc_cache.get("at") or 0) < JTWC_TTL:
-            return cached
-
-    today = datetime.now(timezone.utc).date()
-    start = (today - timedelta(days=45)).isoformat()
-    end = (today + timedelta(days=1)).isoformat()
-    url = JTWC_API.format(start=start, end=end)
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "BAMC-EC-TC/1.0 (+https://www.bamc.top)",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=18) as response:
-            body = json.loads(response.read().decode("utf-8"))
-        systems = []
-        latest_update = ""
-        for feature in body.get("features") or []:
-            props = feature.get("properties") or {}
-            if str(props.get("source") or "").upper() != "JTWC":
-                continue
-            if str(props.get("iscurrent") or "").lower() not in ("true", "1"):
-                continue
-            coords = (feature.get("geometry") or {}).get("coordinates") or []
-            if len(coords) < 2:
-                continue
-            lon, lat = float(coords[0]), float(coords[1])
-            if not (
-                JTWC_DOMAIN["west"] <= lon <= JTWC_DOMAIN["east"]
-                and JTWC_DOMAIN["south"] <= lat <= JTWC_DOMAIN["north"]
-            ):
-                continue
-            severity = props.get("severitydata") or {}
-            speed_kmh = severity.get("severity")
-            wind_kt = round(float(speed_kmh) * 0.539957) if speed_kmh is not None else None
-            name = _jtwc_display_name(props.get("eventname"))
-            update = str(props.get("datemodified") or props.get("todate") or "")
-            if update > latest_update:
-                latest_update = update
-            systems.append(
-                {
-                    "id": str(props.get("eventid") or name),
-                    "episode": props.get("episodeid"),
-                    "name": name,
-                    "eventname": props.get("eventname") or name,
-                    "lat": round(lat, 1),
-                    "lon": round(lon, 1),
-                    "wind_kt": wind_kt,
-                    "alert": props.get("alertlevel") or "Green",
-                    "updated": update,
-                    "from": props.get("fromdate"),
-                    "to": props.get("todate"),
-                    "source": "JTWC",
-                    "details": (props.get("url") or {}).get("details"),
-                }
-            )
-        systems.sort(key=lambda item: item["wind_kt"] or 0, reverse=True)
-        payload = {
-            "ok": True,
-            "source": "GDACS / JTWC",
-            "sourceNote": "JTWC 活跃系统由 GDACS 实时转发；只保留当前中心位于 100–140°E、10–35°N 的系统。",
-            "fetched": int(now),
-            "updated": latest_update,
-            "count": len(systems),
-            "ttl": JTWC_TTL,
-            "domain": JTWC_DOMAIN,
-            "systems": systems,
-        }
-        with _jtwc_lock:
-            _jtwc_cache["at"] = now
-            _jtwc_cache["payload"] = payload
-            _jtwc_cache["error"] = None
-        return payload
-    except Exception as exc:  # noqa: BLE001
-        with _jtwc_lock:
-            _jtwc_cache["error"] = str(exc)
-            cached = _jtwc_cache.get("payload")
-        if cached is not None:
-            stale = dict(cached)
-            stale["stale"] = True
-            stale["error"] = "JTWC 源暂时不可达，显示上次成功结果"
-            return stale
-        raise
-
-
 def public_product(product: dict) -> dict:
     keys = (
         "id", "source", "name", "title", "kind", "interval",
@@ -506,16 +383,6 @@ def resolve_frame(pid: str, stamp: str) -> dict | None:
     return None
 
 
-def fetch_tcmodel(model: str, date: str | None = None) -> dict:
-    """Read a direct official/primary source through the tc_direct adapters."""
-    systems = []
-    try:
-        systems = fetch_jtwc().get("systems") or []
-    except Exception:
-        pass
-    return tc_direct_fetch_model(model, date, systems)
-
-
 class Handler(BaseHTTPRequestHandler):
     server_version = "ECMWFSouthChina/1.0"
     protocol_version = "HTTP/1.1"
@@ -571,12 +438,6 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == "/api/meta":
                 return self.api_meta()
-            if path == "/api/jtwc":
-                return self.api_jtwc(qs)
-            if path == "/api/tcmodel/dates":
-                return self.api_tcmodel_dates(qs)
-            if path == "/api/tcmodel":
-                return self.api_tcmodel(qs)
             if path == "/api/frames":
                 return self.api_frames(qs)
             if path == "/api/img":
@@ -611,40 +472,6 @@ class Handler(BaseHTTPRequestHandler):
                 "notice": "ECMWF IFS 数据经 Open-Meteo 获取，图表由本地脚本生成。",
             }
         )
-
-    def api_jtwc(self, qs: dict) -> None:
-        force = (qs.get("force") or ["0"])[0] in ("1", "true")
-        try:
-            payload = fetch_jtwc(force=force)
-        except Exception as exc:  # noqa: BLE001
-            return self._json(
-                {
-                    "ok": False,
-                    "error": "无法读取 JTWC 活跃系统：%s" % exc,
-                    "domain": JTWC_DOMAIN,
-                },
-                502,
-            )
-        self._json(payload)
-
-    def api_tcmodel_dates(self, qs: dict) -> None:
-        model = (qs.get("model") or [""])[0]
-        try:
-            payload = fetch_tcmodel_dates(model)
-        except Exception as exc:  # noqa: BLE001
-            return self._json({"ok": False, "error": "无法读取 %s 起报时次：%s" % (model, exc)}, 502)
-        self._json(payload)
-
-    def api_tcmodel(self, qs: dict) -> None:
-        model = (qs.get("model") or [""])[0]
-        date = (qs.get("date") or [None])[0] or None
-        try:
-            payload = fetch_tcmodel(model, date)
-        except ValueError as exc:
-            return self._json({"ok": False, "error": str(exc)}, 400)
-        except Exception as exc:  # noqa: BLE001
-            return self._json({"ok": False, "error": "无法读取 %s 数据：%s" % (model, exc)}, 502)
-        self._json(payload)
 
     def api_frames(self, qs: dict) -> None:
         pid = (qs.get("p") or [DEFAULT_PRODUCT])[0]
@@ -718,8 +545,6 @@ class Handler(BaseHTTPRequestHandler):
     def serve_static(self, path: str) -> None:
         if path in ("/", ""):
             path = "/index.html"
-        if path in ("/tc", "/tc/"):
-            path = "/tc/index.html"
         rel = urllib.parse.unquote(path).lstrip("/")
         root = PUBLIC_DIR.resolve()
         target = (PUBLIC_DIR / rel).resolve()
@@ -779,7 +604,7 @@ def main() -> None:
     server = Server((args.host, port), Handler)
     url = "http://%s:%d" % ("127.0.0.1" if args.host in ("0.0.0.0", "") else args.host, port)
     log("ECMWF 华南预报站已启动：%s" % url)
-    log("共 %d 个预报产品；台风系集页：%s/tc/" % (len(PRODUCTS), url))
+    log("共 %d 个预报产品" % len(PRODUCTS))
     log("图像目录：%s" % ECMWF_DIR)
     log("按 Ctrl+C 停止服务")
 

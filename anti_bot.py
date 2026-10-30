@@ -282,7 +282,7 @@ class RequestGuard:
 
         cookie = self._cookie_value(headers.get("Cookie"), self.cookie_name)
 
-        if path in ("/", "/index.html", "/tc", "/tc/") or path.endswith(".html"):
+        if path in ("/", "/index.html") or path.endswith(".html"):
             if not self._valid_cookie(cookie):
                 return Decision(True, set_cookie=True)
             return Decision(True)
