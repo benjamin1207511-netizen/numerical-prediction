@@ -1,0 +1,25 @@
+# 生成物 / 缓存（图片由 auto_update.py 生成，不入库）
+ecmwf/
+ecmwf_build/
+ecmwf_prev/
+_cache/
+.cartopy/
+data/
+.tc-cache/
+__pycache__/
+*.pyc
+
+# 运行日志与状态
+*.log
+.auto_update.lock
+.auto_update_state.json
+.tc_auto_update_state.json
+
+# 浏览器 / 调试残留
+.chrome-*/
+export-test*/
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db

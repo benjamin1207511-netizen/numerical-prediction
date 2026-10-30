@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f2e7">
+<meta name="description" content="BAMC ECMWF 系集热带气旋路径与强度预报：51 成员集合，西北太平洋 100–140°E、10–35°N。">
+<title>ECMWF 系集热带气旋 · BAMC</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='8' fill='%23f4f2e7'/%3E%3Ccircle cx='24' cy='24' r='15' fill='none' stroke='%23171916' stroke-width='2'/%3E%3Cpath d='M9 24h30M24 9c7 8 7 22 0 30M24 9c-7 8-7 22 0 30' fill='none' stroke='%232f7d63' stroke-width='1.2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/tc/tc.css?v=15">
+</head>
+<body>
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 4.8v14.4c0 .8.9 1.3 1.6.9l11-7.2c.6-.4.6-1.3 0-1.7l-11-7.2C8.9 3.5 8 4 8 4.8z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4.2" height="15" rx="1.1"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.1"/></symbol>
+  <symbol id="i-first" viewBox="0 0 24 24"><rect x="4.5" y="5" width="2.4" height="14" rx="1"/><path d="M20 6.2v11.6c0 .8-.9 1.3-1.6.9l-9-5.8c-.6-.4-.6-1.3 0-1.7l9-5.8c.7-.4 1.6 0 1.6.8z"/></symbol>
+  <symbol id="i-last" viewBox="0 0 24 24"><rect x="17.1" y="5" width="2.4" height="14" rx="1"/><path d="M4 6.2v11.6c0 .8.9 1.3 1.6.9l9-5.8c.6-.4.6-1.3 0-1.7l-9-5.8C4.9 5 4 5.4 4 6.2z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M16.6 5.6v12.8c0 .8-.9 1.3-1.6.9l-9.2-6.4c-.6-.4-.6-1.3 0-1.7l9.2-6.4c.7-.4 1.6 0 1.6.8z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M7.4 5.6v12.8c0 .8.9 1.3 1.6.9l9.2-6.4c.6-.4.6-1.3 0-1.7L9 4.8c-.7-.4-1.6 0-1.6.8z"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-shrink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11.2M7.5 10.4l4.5 4.5 4.5-4.5"/><path d="M4.5 19.5h15"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 11a8.5 8.5 0 1 0-2.2 6.1"/><path d="M20.5 4.6v6.2h-6.2"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 10 4 4 4-4"/></symbol>
+  <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></symbol>
+  <symbol id="i-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17c5-1 6-9 10-9 3 0 4 4 8 5" stroke-dasharray="3 3"/></symbol>
+  <symbol id="i-wind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 8h10.5a2.5 2.5 0 1 0-2.4-3.2M3 12h15a2.2 2.2 0 1 1-2.1 2.8M3 16h7.5a2 2 0 1 1-1.9 2.5"/></symbol>
+</svg>
+
+<div class="site">
+  <header class="topbar">
+    <a class="brand" href="/tc/" aria-label="BAMC EC 系集热带气旋">
+      <span class="brand-mark" aria-hidden="true">
+        <span class="brand-ring"></span>
+        <span class="brand-cross"></span>
+        <span class="brand-dot"></span>
+      </span>
+      <span class="brand-type"><b>BAMC</b><small>TROPICAL / EC ENS</small></span>
+    </a>
+    <nav class="topnav" aria-label="主导航">
+      <a href="/">预报图库</a>
+      <a href="/tc/" class="active">热带气旋</a>
+    </nav>
+    <div class="top-meta">
+      <span class="clock" id="clock">—</span>
+      <span class="status is-loading" id="connStatus"><i></i><span id="connText">连接中</span></span>
+      <a class="icon-btn" href="/tc/" title="刷新页面" aria-label="刷新页面"><svg><use href="#i-refresh"/></svg></a>
+    </div>
+  </header>
+
+  <main>
+    <section class="masthead">
+      <div class="kicker">
+        <span><i class="k-mark"></i> BAMC · TROPICAL CYCLONE OUTLOOK</span>
+        <span>PRODUCT 01 / ENSEMBLE TRACK &amp; INTENSITY</span>
+      </div>
+      <div class="title-row">
+        <div class="title-copy">
+          <h1 id="heroTitle">ECMWF Ensemble<br><em>Tropical Cyclone Tracks</em></h1>
+          <p class="deck"><span id="deckModelText">ECMWF IFS 系集热带气旋路径与强度预报</span><span class="sep">/</span><span class="deck-region">西北太平洋 100–140°E · 10–35°N</span></p>
+        </div>
+        <div class="issue">
+          <span class="issue-label">ISSUE</span>
+          <strong id="issueDate">2026/10/22 00</strong>
+          <span class="issue-utc">(UTC)</span>
+          <span class="issue-note" id="issueNote">ECMWF IFS ENS · 51 members</span>
+        </div>
+      </div>
+      <div class="meta-strip" id="metaStrip">
+        <div class="meta-item meta-item-model"><span>模式</span><select id="modelSelect" aria-label="选择预报模式">
+          <option value="ifs">ECMWF IFS ENS</option>
+          <option value="aifs">ECMWF AIFS ENS</option>
+          <option value="gefs">NOAA GEFS</option>
+        </select></div>
+        <div class="meta-item"><span>系统</span><b id="metaStorm">CHAMPI <s>36W</s></b></div>
+        <div class="meta-item"><span>起报</span><b id="metaInit">2026-10-22 00 UTC</b></div>
+        <div class="meta-item"><span>预报时效</span><b id="metaLead">+0 – +120 h</b></div>
+        <div class="meta-item"><span>覆盖范围</span><b>100–140°E · 10–35°N</b></div>
+        <div class="meta-item"><span>JTWC 活跃</span><b id="metaJtwc">同步中…</b></div>
+        <div class="meta-item meta-item-wide"><span>数据</span><b id="metaSource">ECMWF Open Data · TC track BUFR</b></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <article class="chart-card" id="chartCard">
+        <header class="chart-head">
+          <div class="chart-head-left">
+            <span class="eyebrow">TRACK MAP / 系集路径</span>
+            <h2 id="stormTitle">CHAMPI <span id="stormId">36W</span></h2>
+            <p class="chart-sub" id="chartSub">51 个成员 · 路径按强度着色 · 选择时效查看系集状态</p>
+          </div>
+          <div class="chart-head-right">
+            <span class="member-pill"><svg><use href="#i-dot"/></svg><span id="memberPillText">51 MEMBERS</span></span>
+            <div class="lead-readout">
+              <span>FORECAST LEAD</span>
+              <b id="leadBig">+120 <small>h</small></b>
+            </div>
+            <div class="chart-actions">
+              <button class="icon-btn" id="btnDownload" title="导出当前地图 PNG" aria-label="导出当前地图 PNG"><svg><use href="#i-download"/></svg></button>
+              <button class="icon-btn" id="btnFullscreen" title="全屏图表" aria-label="全屏图表"><svg><use href="#i-expand"/></svg></button>
+            </div>
+          </div>
+        </header>
+
+        <div class="chart-body">
+          <div class="map-column">
+            <div class="map-scroll">
+              <div class="map-wrap" id="mapWrap">
+                <svg id="mapSvg" viewBox="0 0 1000 660" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="mapTitle mapDesc">
+                  <title id="mapTitle">ECMWF 系集热带气旋路径与强度图</title>
+                  <desc id="mapDesc">西北太平洋 100 至 140 度东经、10 至 35 度北纬范围内，CHAMPI 的 51 个系集成员路径，圆点颜色表示最低海平面气压或最大风速；红色菱形为框内 JTWC 活跃系统当前位置。</desc>
+                  <defs>
+                    <clipPath id="plotClip"><rect id="plotClipRect" x="58" y="26" width="916" height="576"/></clipPath>
+                    <filter id="dotShadow" x="-80%" y="-80%" width="260%" height="260%">
+                      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#10130f" flood-opacity=".22"/>
+                    </filter>
+                  </defs>
+                  <rect class="map-paper" x="0" y="0" width="1000" height="660"/>
+                  <g id="graticule"></g>
+                  <g id="landLayer" clip-path="url(#plotClip)"></g>
+                  <g id="borderLayer" clip-path="url(#plotClip)"></g>
+                  <g id="cityLayer" clip-path="url(#plotClip)"></g>
+                  <g id="trackLayer" clip-path="url(#plotClip)"></g>
+                  <g id="pointLayer" clip-path="url(#plotClip)"></g>
+                  <g id="annotationLayer" clip-path="url(#plotClip)"></g>
+                  <g id="jtwcLayer" clip-path="url(#plotClip)"></g>
+                  <g id="axisLayer"></g>
+                </svg>
+                <div class="map-topline">
+                  <span class="map-badge"><span class="pulse"></span> <span id="mapModelBadge">ECMWF IFS ENS</span></span>
+                  <span class="map-badge map-badge-ghost" id="mapRunBadge">00Z RUN</span>
+                  <span class="map-badge map-badge-jtwc" id="jtwcBadge"><span class="jtwc-dot"></span> JTWC · —</span>
+                </div>
+                <div class="map-hint" id="mapHint">悬停圆点查看成员 · 点击锁定</div>
+                <div class="map-credit">www.bamc.top</div>
+                <div class="tooltip" id="tooltip" hidden></div>
+                <div class="loading" id="loading">
+                  <span class="spinner"></span>
+                  <b>正在加载 ECMWF 系集</b>
+                  <em id="loadingNote">读取 51 个成员的路径…</em>
+                </div>
+                <div class="chart-error" id="chartError" hidden>
+                  <b>数据加载失败</b>
+                  <p id="chartErrorText">请稍后刷新重试。</p>
+                  <button class="btn-dark" id="btnRetry">重新加载</button>
+                </div>
+              </div>
+            </div>
+            <div class="map-footer">
+              <span>Init: <b id="mapInit">2026-10-22 00 UTC</b> <span class="dot-sep">·</span> Lead <b id="mapLeadRange">+0 – +120 h</b> <span class="dot-sep">·</span> <span id="mapModelText">ECMWF IFS ENS 0.25°</span></span>
+              <span class="map-footer-right"><span id="mapFooterMembers">51 members</span> <span class="dot-sep">·</span> 6 h intervals</span>
+            </div>
+          </div>
+
+          <aside class="legend" aria-label="强度图例">
+            <div class="legend-head">
+              <span>INTENSITY</span>
+              <b id="legendTitle">最低气压</b>
+            </div>
+            <div class="legend-scale" id="legendScale"></div>
+            <div class="legend-caption" id="legendCaption">minimum MSLP (hPa)</div>
+            <div class="legend-rule"></div>
+            <div class="legend-keys">
+              <div><svg class="k-line"><use href="#i-line"/></svg><span>成员路径</span></div>
+              <div><span class="k-mean"></span><span>系集平均</span></div>
+              <div><span class="k-init"></span><span>初始位置</span></div>
+              <div><span class="k-current"></span><span>当前时效</span></div>
+            </div>
+            <div class="legend-peak">
+              <span>PEAK INTENSITY · 全时效</span>
+              <div><b id="peakMslp">—</b><small>hPa</small></div>
+              <div><b id="peakWind">—</b><small>kt</small></div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="timeline">
+          <div class="transport" aria-label="时间轴控制">
+            <button class="tbtn" id="btnFirst" title="最早时效" aria-label="最早时效"><svg><use href="#i-first"/></svg></button>
+            <button class="tbtn" id="btnPrev" title="上一时效" aria-label="上一时效"><svg><use href="#i-prev"/></svg></button>
+            <button class="play" id="btnPlay" title="播放 / 暂停" aria-label="播放"><svg id="playIcon"><use href="#i-play"/></svg></button>
+            <button class="tbtn" id="btnNext" title="下一时效" aria-label="下一时效"><svg><use href="#i-next"/></svg></button>
+            <button class="tbtn" id="btnLast" title="最新时效" aria-label="最新时效"><svg><use href="#i-last"/></svg></button>
+          </div>
+          <div class="time-track">
+            <div class="time-caption">
+              <span>预报时效 <b id="leadNow">+120 h</b></span>
+              <span id="validNow">10/27 08:00 CST</span>
+            </div>
+            <input type="range" id="leadSlider" min="0" max="1" step="1" value="1" aria-label="预报时效">
+            <div class="time-ticks" id="timeTicks"></div>
+          </div>
+          <div class="timeline-side">
+            <span class="timeline-kicker">FRAME</span>
+            <b id="frameIndex">1 / 1</b>
+            <span class="timeline-kicker">STEP</span>
+            <b id="stepText">6 h</b>
+          </div>
+        </div>
+      </article>
+
+      <aside class="sidebar">
+        <section class="panel snapshot" id="snapshotPanel">
+          <div class="panel-kicker">00 / ENSEMBLE SNAPSHOT</div>
+          <div class="panel-title-row">
+            <h3>系集快照</h3>
+            <span class="tag" id="selectedTag">全部成员</span>
+          </div>
+          <div class="big-readout">
+            <span id="snapshotLabel">+120 H · 系集最低</span>
+            <div class="big-number"><b id="mslpBig">—</b><small>hPa</small></div>
+            <p id="mslpSub">最低海平面气压</p>
+          </div>
+          <div class="stat-grid">
+            <div><span>最大风速</span><b id="windBig">—<small>kt</small></b></div>
+            <div><span>系集离散</span><b id="spreadBig">—<small>hPa</small></b></div>
+            <div><span>热带风暴成员</span><b id="tsCount">—</b></div>
+            <div><span>路径离散</span><b id="pathSpread">—<small>km</small></b></div>
+          </div>
+          <div class="member-detail" id="memberDetail" hidden>
+            <div class="member-detail-head"><span id="memberTitle">成员 01</span><button id="btnUnpin" title="取消选中" aria-label="取消选中">×</button></div>
+            <div class="member-detail-grid">
+              <span><em>时效</em><b id="memberLead">—</b></span>
+              <span><em>气压</em><b id="memberMslp">—</b></span>
+              <span><em>风速</em><b id="memberWind">—</b></span>
+              <span><em>位置</em><b id="memberPos">—</b></span>
+            </div>
+            <div class="member-detail-foot"><span>最低 <b id="memberMin">—</b></span><span>峰值 <b id="memberMax">—</b></span><span>结束 <b id="memberEnd">—</b></span></div>
+          </div>
+          <div class="panel-footnote">统计基于当前时效仍在活跃的成员；点击地图圆点可查看单成员。</div>
+        </section>
+
+        <section class="panel intensity-panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-kicker">01 / INTENSITY</div>
+              <h3>强度系集</h3>
+            </div>
+            <div class="mini-legend">
+              <span><i class="line-med"></i>中位数</span>
+              <span><i class="band"></i>10–90%</span>
+            </div>
+          </div>
+          <div class="intensity-chart-wrap">
+            <svg id="intensityChart" viewBox="0 0 340 218" preserveAspectRatio="xMidYMid meet" role="img" aria-label="系集最低气压随预报时效变化"></svg>
+          </div>
+          <div class="chart-footnote">
+            <span>MSLP / hPa</span>
+            <span id="intensityNote">细线为 51 个成员，黑线为中位数。</span>
+          </div>
+        </section>
+
+        <section class="panel controls-panel">
+          <div class="panel-kicker">02 / CONTROLS</div>
+          <div class="panel-title-row"><h3>显示设置</h3><span class="tag tag-quiet">ECMWF</span></div>
+          <div class="control-pair">
+            <label class="field">
+              <span>起报时次</span>
+              <span class="select-wrap"><select id="runSelect"></select><svg><use href="#i-chevron"/></svg></span>
+            </label>
+            <label class="field">
+              <span>热带气旋</span>
+              <span class="select-wrap"><select id="stormSelect"></select><svg><use href="#i-chevron"/></svg></span>
+            </label>
+          </div>
+          <div class="field">
+            <span>圆点着色</span>
+            <div class="segmented" id="colorMode" role="group" aria-label="圆点着色方式">
+              <button data-mode="mslp" class="on">最低气压</button>
+              <button data-mode="wind">最大风速</button>
+            </div>
+          </div>
+          <div class="switch-list">
+            <label class="switch"><input type="checkbox" id="toggleMembers" checked><span class="switch-track"></span><span>全部成员路径</span></label>
+            <label class="switch"><input type="checkbox" id="toggleMean" checked><span class="switch-track"></span><span>平均路径</span></label>
+            <label class="switch"><input type="checkbox" id="toggleLabels" checked><span class="switch-track"></span><span>24 小时标签</span></label>
+            <label class="switch"><input type="checkbox" id="toggleCities" checked><span class="switch-track"></span><span>城市参考</span></label>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="panel jtwc-panel" id="jtwcPanel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-kicker">04 / JTWC LIVE SYSTEMS</div>
+          <h3>JTWC 当前活跃系统</h3>
+        </div>
+        <div class="jtwc-head-right">
+          <span class="jtwc-live">LIVE</span>
+          <span class="jtwc-updated" id="jtwcUpdated">同步中…</span>
+          <button class="jtwc-refresh" id="btnJtwcRefresh" title="刷新 JTWC 活跃系统" aria-label="刷新 JTWC 活跃系统"><svg><use href="#i-refresh"/></svg></button>
+        </div>
+      </div>
+      <div class="jtwc-body">
+        <div class="jtwc-list" id="jtwcList">
+          <div class="jtwc-empty">正在读取 JTWC 活跃系统…</div>
+        </div>
+        <div class="jtwc-note">
+          <b>范围约束</b> 仅列出 <strong>当前中心</strong> 位于 100–140°E、10–35°N 的 JTWC 系统；位置来自 GDACS 对 JTWC 的实时转发，每 5 分钟自动检查。地图上的系集路径只可能落在同一框内；红色菱形是框内所有 JTWC 系统，系集轨迹随选中的系统切换。
+        </div>
+      </div>
+    </section>
+
+    <section class="detail-grid">
+      <section class="panel quantile-panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-kicker">03 / ENSEMBLE QUANTILES</div>
+            <h3>分时效系集统计</h3>
+          </div>
+          <span class="panel-aside">MSLP / WIND / SPREAD</span>
+        </div>
+        <div class="table-scroll">
+          <table class="quantile-table">
+            <thead>
+              <tr><th>时效</th><th>活跃成员</th><th>MSLP P10</th><th>MSLP 中位数</th><th>MSLP P90</th><th>风速中位数</th><th>≥34 kt</th><th>路径离散</th></tr>
+            </thead>
+            <tbody id="quantileBody">
+              <tr><td colspan="8" class="table-empty">正在计算…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel read-panel">
+        <div class="panel-kicker">READING THE CHART</div>
+        <h3>如何阅读</h3>
+        <p class="read-lead">把每一条细线读作一种可能。圆点越深，系统越强；路径越分散，预报不确定性越大。</p>
+        <ol class="read-list">
+          <li><span>01</span><p><b>路径</b> 51 条成员轨迹展示可能的移动方向，黑色虚线为系集平均。</p></li>
+          <li><span>02</span><p><b>强度</b> 圆点按最低气压或最大风速着色，右侧曲线给出逐时强度演化。</p></li>
+          <li><span>03</span><p><b>不确定性</b> 路径离散与强度区间随时效增长，越往后越应关注概率而非单一路径。</p></li>
+        </ol>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-left">
+        <span class="footer-mark">BAMC</span>
+        <span>EC ENS Tropical Cyclone · 数据：ECMWF Open Data</span>
+      </div>
+      <div class="footer-right">
+        <span>Init: <b id="footerInit">2026-10-22 00 UTC</b></span>
+        <span class="dot-sep">·</span>
+        <span>仅作预报参考，不构成业务预警</span>
+        <span class="dot-sep">·</span>
+        <a href="https://www.ecmwf.int" target="_blank" rel="noopener">ECMWF</a>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/tc/tc.js?v=15"></script>
+</body>
+</html>
