@@ -73,51 +73,51 @@ LEADS = list(range(24, 241, 6))
 SINGLE_RUN_URL = "https://single-runs-api.open-meteo.com/v1/forecast"
 MAIN_RUN_URL = "https://api.open-meteo.com/v1/forecast"
 
-# Open-Meteo 对「大量点 × 22 个变量 × 11 天」的单次请求容易超时，
-# 拆成 6 个并发小请求后再合并，保证 240h 数据也能稳定下载。
+# Open-Meteo 的调用量按「地点数 × 变量组数（每 10 个变量算 1 份）」计。
+# 变量组越多、地点越多，消耗越大；这里压到 3 组（每组 ≤10 个变量），
+# 一次更新约 825×3 + 525×1 ≈ 3000 次调用，2 次/天 ≈ 6000 次，低于免费额度 10000/天。
 VAR_GROUPS = [
     [
         "temperature_2m",
         "precipitation",
         "geopotential_height_500hPa",
         "pressure_msl",
-    ],
-    [
         "wind_speed_500hPa",
         "wind_direction_500hPa",
         "wind_speed_850hPa",
         "wind_direction_850hPa",
-    ],
-    [
         "wind_speed_10m",
         "wind_direction_10m",
-        "wind_speed_925hPa",
-        "wind_direction_925hPa",
     ],
     [
+        "wind_speed_925hPa",
+        "wind_direction_925hPa",
         "wind_gusts_10m",
         "cape",
         "total_column_integrated_water_vapour",
         "cloud_cover",
-    ],
-    [
         "temperature_850hPa",
         "dew_point_850hPa",
         "temperature_700hPa",
+        "dew_point_700hPa",
     ],
     [
-        "dew_point_700hPa",
         "temperature_500hPa",
         "relative_humidity_2m",
         "relative_humidity_500hPa",
     ],
 ]
 
-# 东亚区域只需要综合图和 500hPa 风场所需的变量。
+# 东亚区域只需要综合图和 500hPa 风场所需的变量（6 个，单组即可）。
 EA_VAR_GROUPS = [
-    ["precipitation", "geopotential_height_500hPa"],
-    ["wind_speed_500hPa", "wind_direction_500hPa"],
-    ["wind_speed_850hPa", "wind_direction_850hPa"],
+    [
+        "precipitation",
+        "geopotential_height_500hPa",
+        "wind_speed_500hPa",
+        "wind_direction_500hPa",
+        "wind_speed_850hPa",
+        "wind_direction_850hPa",
+    ],
 ]
 
 PRODUCTS = {
@@ -358,7 +358,7 @@ def latest_run() -> str:
     raise RuntimeError("没有找到可用的 ECMWF IFS 起报场")
 
 
-CHUNK_POINTS = 200
+CHUNK_POINTS = 120
 CHUNK_CACHE = BASE_DIR / "_cache" / "chunks"
 RETRY_DELAYS = (5, 10, 20, 30, 45, 60)
 
