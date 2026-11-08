@@ -1053,9 +1053,18 @@ def main() -> None:
         "--jobs", type=int, default=0,
         help="并行渲染进程数；0=自动（min(4, CPU-1)），1=单进程",
     )
+    ap.add_argument(
+        "--source", choices=("openmeteo", "ecmwf"), default=os.environ.get("BAMC_SOURCE", "openmeteo"),
+        help="数据源：openmeteo（默认）或 ecmwf（ECMWF Open Data 直连）",
+    )
     args = ap.parse_args()
 
-    run = args.run or latest_run()
+    if args.source == "ecmwf":
+        import ecmwf_open
+
+        run = args.run or ecmwf_open.latest_run(log=log)
+    else:
+        run = args.run or latest_run()
     run_dt = datetime.strptime(run, "%Y-%m-%dT%H:%M").replace(tzinfo=UTC)
     out_dir = Path(args.out)
     selected = [x.strip() for x in args.products.split(",") if x.strip()]
@@ -1081,6 +1090,10 @@ def main() -> None:
                 raise SystemExit("该输入只包含单区域数据，请提供包含 sc/ea 的 JSON")
             data_by_domain["sc"] = loaded
             log("使用已有网格：%s（%d 点）" % (args.input, len(loaded["points"])))
+    elif args.source == "ecmwf":
+        log("数据源：ECMWF Open Data（IFS 0.25° GRIB2）")
+        cfg = {name: DOMAINS[name] for name in sorted(required_domains)}
+        data_by_domain = ecmwf_open.fetch_grid(run, cfg, log=log)["points"]
     else:
         for domain_name in sorted(required_domains):
             data_by_domain[domain_name] = fetch_grid(
