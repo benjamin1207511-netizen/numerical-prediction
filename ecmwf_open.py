@@ -196,11 +196,18 @@ def _sample_indices(lats: list[float], lons: list[float]) -> tuple[np.ndarray, n
 
 
 def _rh_from_dewpoint(t_k: np.ndarray, td_k: np.ndarray) -> np.ndarray:
-    def es(k):
-        c = k - 273.15
+    """由 2m 气温/露点计算相对湿度；无效值（0 K）按 0 处理，避免 exp 溢出。"""
+    valid = (t_k > 100.0) & (td_k > 100.0) & (td_k <= t_k + 0.5)
+    t_c = np.clip(t_k - 273.15, -80.0, 60.0)
+    td_c = np.clip(td_k - 273.15, -80.0, 60.0)
+
+    def es(c):
         return 6.112 * np.exp(17.67 * c / (c + 243.5))
 
-    return np.clip(100.0 * es(td_k) / es(t_k), 0.0, 100.0)
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        rh = 100.0 * es(td_c) / es(t_c)
+    rh = np.where(valid, np.clip(rh, 0.0, 100.0), 0.0)
+    return rh
 
 
 def _step_fields(run_dt: datetime, step: int, domains: dict) -> dict:
