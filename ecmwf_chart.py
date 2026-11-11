@@ -155,6 +155,42 @@ PRODUCTS = {
         "title": "Vapor Flux at 925hPa",
         "kind": "vapor925",
     },
+    "showalter": {
+        "subdir": "showalter",
+        "prefix": "ecmwf_showalter_",
+        "title": "Showalter Index (°C)",
+        "kind": "showalter",
+    },
+    "wind200": {
+        "subdir": "wind200",
+        "prefix": "ecmwf_wind200_",
+        "title": "Wind Stream & Divergence at 200hPa",
+        "kind": "wind200",
+    },
+    "shear": {
+        "subdir": "shear",
+        "prefix": "ecmwf_shear_",
+        "title": "Wind Shear (500hPa-925hPa)",
+        "kind": "shear",
+    },
+    "tdiff": {
+        "subdir": "tdiff",
+        "prefix": "ecmwf_tdiff_",
+        "title": "Temperature Difference (850hPa-500hPa)",
+        "kind": "tdiff",
+    },
+    "vort500": {
+        "subdir": "vort500",
+        "prefix": "ecmwf_vort500_",
+        "title": "Vorticity & Wind at 500hPa",
+        "kind": "vort500",
+    },
+    "theta_diff": {
+        "subdir": "theta-diff",
+        "prefix": "ecmwf_theta_diff_",
+        "title": "θse Difference (500-850hPa)",
+        "kind": "theta_diff",
+    },
     "h500": {
         "subdir": "h500",
         "prefix": "ecmwf_h500_",
@@ -607,6 +643,41 @@ def specific_humidity(t_c, rh, pressure=925.0):
     return np.where(valid, q, np.nan)
 
 
+def dewpoint_from_rh(t_c, rh):
+    """由气温（°C）和相对湿度（%）反算露点（°C）。"""
+    import numpy as np
+
+    t_c = np.clip(np.asarray(t_c, dtype=float), -80.0, 60.0)
+    rh = np.clip(np.asarray(rh, dtype=float), 1.0, 100.0)
+    es = saturation_vapor_pressure(t_c)
+    e = np.maximum(rh / 100.0 * es, 1e-6)
+    ln = np.log(e / 6.112)
+    return 243.5 * ln / (17.67 - ln)
+
+
+def theta_e_rh(t_c, rh, pressure=850.0):
+    """由气温/相对湿度计算假相当位温（K）。"""
+    return theta_e_850(t_c, dewpoint_from_rh(t_c, rh), pressure)
+
+
+def showalter_index(t850, td850, t500):
+    """Showalter 指数（°C）：850hPa 气块抬升到 500hPa 与环境温度之差。"""
+    import numpy as np
+
+    te = theta_e_850(t850, td850, 850.0)
+    valid = np.isfinite(te)
+    te_safe = np.where(valid, te, 300.0)
+    lo = np.full_like(te_safe, -90.0)
+    hi = np.full_like(te_safe, 60.0)
+    for _ in range(45):
+        mid = 0.5 * (lo + hi)
+        val = theta_e_850(mid, mid, 500.0) - te_safe  # 饱和气块：Td=T
+        lo = np.where(val < 0, mid, lo)
+        hi = np.where(val < 0, hi, mid)
+    result = t500 - 0.5 * (lo + hi)
+    return np.where(valid, result, np.nan)
+
+
 def wind_uv(points, speed_key: str, direction_key: str, idx: int):
     import numpy as np
 
@@ -918,6 +989,152 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
             spec["title"], valid, run_dt, lead, out_path,
         )
 
+    elif kind == "showalter":
+        t850 = grid["interpolate"]([safe_values(p["hourly"]["temperature_850hPa"], idx) for p in points])
+        td850 = grid["interpolate"]([safe_values(p["hourly"]["dew_point_850hPa"], idx) for p in points])
+        t500 = grid["interpolate"]([safe_values(p["hourly"]["temperature_500hPa"], idx) for p in points])
+        si = showalter_index(t850, td850, t500)
+        # 850hPa 在高原/山区可能低于地面，那里的 SI 无意义，遮掉。
+        sp = grid["interpolate"]([
+            safe_values(p["hourly"]["surface_pressure"], idx)
+            if "surface_pressure" in p["hourly"] else 1000.0
+            for p in points
+        ])
+        si = np.where(sp >= 850.0, si, np.nan)
+        levels = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3]
+        colors = ["#8b0000", "#e31a1c", "#f57c00", "#fdd835", "#ffffa8",
+                  "#7bc96f", "#6baed6", "#c6dbef", "#f7fbff"]
+        cf = ax.contourf(
+            LON, LAT, si, levels=levels, colors=colors,
+            extend="both", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cs = ax.contour(
+            LON, LAT, si, levels=list(range(-6, 4)), colors="#555555",
+            linewidths=0.35, transform=ccrs.PlateCarree(), zorder=6,
+        )
+        ax.clabel(cs, inline=True, fontsize=5.5, fmt="%d")
+        finish_figure(
+            fig, ax, cf, list(range(-5, 4)),
+            [str(x) for x in range(-5, 4)], "Showalter index (°C)",
+            spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "wind200":
+        u, v = wind_uv(points, "wind_speed_200hPa", "wind_direction_200hPa", idx)
+        u = grid["interpolate"](u)
+        v = grid["interpolate"](v)
+        div = grid["interpolate"](
+            [safe_values(p["hourly"]["divergence_200hPa"], idx) for p in points])
+        levels = [0, 2, 4, 6, 8, 10]
+        colors = ["#f7fbff", "#c6dbef", "#6baed6", "#7bc96f", "#fdd835"]
+        cf = ax.contourf(
+            LON, LAT, div, levels=levels, colors=colors,
+            extend="max", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cf.cmap.set_over("#e31a1c")
+        ax.streamplot(
+            LON, LAT, u * 0.514444, v * 0.514444, color="#333333",
+            linewidth=0.45, arrowsize=0.6, density=1.6,
+            transform=ccrs.PlateCarree(), zorder=6,
+        )
+        finish_figure(
+            fig, ax, cf, levels, [str(x) for x in levels],
+            "divergence (10⁻⁵ s⁻¹)", spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "shear":
+        u500, v500 = wind_uv(points, "wind_speed_500hPa", "wind_direction_500hPa", idx)
+        u925, v925 = wind_uv(points, "wind_speed_925hPa", "wind_direction_925hPa", idx)
+        u500 = grid["interpolate"](u500)
+        v500 = grid["interpolate"](v500)
+        u925 = grid["interpolate"](u925)
+        v925 = grid["interpolate"](v925)
+        shear = np.hypot((u500 - u925) * 0.514444, (v500 - v925) * 0.514444)
+        levels = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75]
+        colors = ["#d9f0a3", "#addd8e", "#ffeda0", "#fed976", "#fd8d3c",
+                  "#e31a1c", "#c51b8a", "#f768a1", "#fbb4b9"]
+        cf = ax.contourf(
+            LON, LAT, shear, levels=levels, colors=colors,
+            extend="both", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cs = ax.contour(
+            LON, LAT, shear, levels=levels, colors="#3f6fb5",
+            linewidths=0.4, transform=ccrs.PlateCarree(), zorder=6,
+        )
+        ax.clabel(cs, inline=True, fontsize=5.5, fmt="%d")
+        finish_figure(
+            fig, ax, cf, levels, [str(x) for x in levels],
+            "wind shear (m/s)", spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "tdiff":
+        t850 = grid["interpolate"]([safe_values(p["hourly"]["temperature_850hPa"], idx) for p in points])
+        t500 = grid["interpolate"]([safe_values(p["hourly"]["temperature_500hPa"], idx) for p in points])
+        diff = t850 - t500
+        levels = [18, 20, 22, 24, 26, 28, 30, 32, 34]
+        cmap = matplotlib.colormaps["RdYlBu_r"]
+        colors = [cmap(v) for v in np.linspace(0.05, 0.95, len(levels) - 1)]
+        cf = ax.contourf(
+            LON, LAT, diff, levels=levels, colors=colors,
+            extend="both", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cs = ax.contour(
+            LON, LAT, diff, levels=levels[1:-1], colors="#4a4a4a",
+            linewidths=0.35, transform=ccrs.PlateCarree(), zorder=6,
+        )
+        ax.clabel(cs, inline=True, fontsize=5.5, fmt="%d")
+        finish_figure(
+            fig, ax, cf, levels, [str(x) for x in levels],
+            "850-500hPa ΔT (K)", spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "vort500":
+        vo = grid["interpolate"]([safe_values(p["hourly"]["vorticity_500hPa"], idx) for p in points])
+        u, v = wind_uv(points, "wind_speed_500hPa", "wind_direction_500hPa", idx)
+        u = grid["interpolate"](u)
+        v = grid["interpolate"](v)
+        levels = [0, 2, 4, 6, 8, 10]
+        colors = ["#f7fbff", "#bdd7e7", "#6baed6", "#7bc96f", "#fdd835"]
+        cf = ax.contourf(
+            LON, LAT, vo, levels=levels, colors=colors,
+            extend="max", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cf.cmap.set_over("#e31a1c")
+        cf.cmap.set_under("#ffffff")
+        ax.barbs(
+            LON[barb_slice], LAT[barb_slice], u[barb_slice], v[barb_slice],
+            transform=ccrs.PlateCarree(), color="#555555",
+            length=5.4, linewidth=0.35,
+            barb_increments={"half": 5, "full": 10, "flag": 50}, zorder=7,
+        )
+        finish_figure(
+            fig, ax, cf, levels, [str(x) for x in levels],
+            "vorticity (10⁻⁵ s⁻¹)", spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "theta_diff":
+        t500 = grid["interpolate"]([safe_values(p["hourly"]["temperature_500hPa"], idx) for p in points])
+        r500 = grid["interpolate"]([safe_values(p["hourly"]["relative_humidity_500hPa"], idx) for p in points])
+        t850 = grid["interpolate"]([safe_values(p["hourly"]["temperature_850hPa"], idx) for p in points])
+        r850 = grid["interpolate"]([safe_values(p["hourly"]["relative_humidity_850hPa"], idx) for p in points])
+        diff = theta_e_rh(t500, r500, 500.0) - theta_e_rh(t850, r850, 850.0)
+        levels = [-24, -16, -8, 0, 8, 16, 24]
+        cmap = matplotlib.colormaps["RdYlBu_r"]
+        colors = [cmap(v) for v in np.linspace(0.05, 0.95, len(levels) - 1)]
+        cf = ax.contourf(
+            LON, LAT, diff, levels=levels, colors=colors,
+            extend="both", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cs = ax.contour(
+            LON, LAT, diff, levels=levels[1:-1], colors="#4a4a4a",
+            linewidths=0.35, transform=ccrs.PlateCarree(), zorder=6,
+        )
+        ax.clabel(cs, inline=True, fontsize=5.5, fmt="%d")
+        finish_figure(
+            fig, ax, cf, levels, [str(x) for x in levels],
+            "θse(500) - θse(850) (K)", spec["title"], valid, run_dt, lead, out_path,
+        )
+
     elif kind == "h500":
         height = grid["interpolate"]([safe_values(p["hourly"]["geopotential_height_500hPa"], idx) for p in points])
         u, v = wind_uv(points, "wind_speed_500hPa", "wind_direction_500hPa", idx)
@@ -1167,7 +1384,7 @@ def main() -> None:
     ap.add_argument("--out", default=str(OUT_DIR), help="输出目录")
     ap.add_argument(
         "--products",
-        default="combined,combined_ea,t2m,h500,h500_ea,theta_se850,vapor925,rain24,mslp,wind10,wind925,gust24,cape,kindex,pwat,rh2m,rh500,cloud",
+        default="combined,combined_ea,t2m,h500,h500_ea,theta_se850,vapor925,showalter,wind200,shear,tdiff,vort500,theta_diff,rain24,mslp,wind10,wind925,gust24,cape,kindex,pwat,rh2m,rh500,cloud",
         help="要生成的产品，逗号分隔",
     )
     ap.add_argument(

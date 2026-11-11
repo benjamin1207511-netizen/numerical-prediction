@@ -55,6 +55,7 @@ FIELDS = [
     ("t2m", "2t", None),
     ("d2m", "2d", None),
     ("msl", "msl", None),
+    ("sp", "sp", None),
     ("u10", "10u", None),
     ("v10", "10v", None),
     ("gust", ("10fg", "10fg3"), None),  # 96h 之后 Open Data 只提供 3 小时阵风 10fg3
@@ -66,7 +67,12 @@ FIELDS = [
     ("t700", "t", "700"),
     ("t850", "t", "850"),
     ("r700", "r", "700"),
-    ("r850", "r", "850"),    ("r500", "r", "500"),
+    ("r850", "r", "850"),
+    ("r500", "r", "500"),
+    ("u200", "u", "200"),
+    ("v200", "v", "200"),
+    ("d200", "d", "200"),      # 200hPa 散度（s^-1）
+    ("vo500", "vo", "500"),    # 500hPa 相对涡度（s^-1）
     ("u500", "u", "500"),
     ("v500", "v", "500"),
     ("u850", "u", "850"),
@@ -336,7 +342,8 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
                   for key in ("t2m", "d2m", "msl", "u10", "v10", "gust", "cape",
                               "tcwv", "tcc", "gh500", "t500", "t700", "t850",
                               "r700", "r850", "r500", "u500", "v500", "u850",
-                              "v850", "u925", "v925", "t925", "r925", "tp")}
+                              "v850", "u925", "v925", "t925", "r925",
+                              "u200", "v200", "d200", "vo500", "sp", "tp")}
 
         for step, payload in step_data.items():
             fields = payload["domains"][name]
@@ -357,6 +364,7 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
             return speed, direction
 
         for tag, ukey, vkey in (("500hPa", "u500", "v500"),
+                                ("200hPa", "u200", "v200"),
                                 ("850hPa", "u850", "v850"),
                                 ("925hPa", "u925", "v925"),
                                 ("10m", "u10", "v10")):
@@ -375,6 +383,7 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
                     "precipitation": hourly["precipitation"][i].tolist(),
                     "geopotential_height_500hPa": hourly["gh500"][i].tolist(),
                     "pressure_msl": (hourly["msl"][i] / 100.0).tolist(),
+                    "surface_pressure": (hourly["sp"][i] / 100.0).tolist(),
                     "wind_speed_500hPa": hourly["wind_speed_500hPa"][i].tolist(),
                     "wind_direction_500hPa": hourly["wind_direction_500hPa"][i].tolist(),
                     "wind_speed_850hPa": hourly["wind_speed_850hPa"][i].tolist(),
@@ -383,6 +392,10 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
                     "wind_direction_10m": hourly["wind_direction_10m"][i].tolist(),
                     "wind_speed_925hPa": hourly["wind_speed_925hPa"][i].tolist(),
                     "wind_direction_925hPa": hourly["wind_direction_925hPa"][i].tolist(),
+                    "wind_speed_200hPa": hourly["wind_speed_200hPa"][i].tolist(),
+                    "wind_direction_200hPa": hourly["wind_direction_200hPa"][i].tolist(),
+                    "divergence_200hPa": (hourly["d200"][i] * 1e5).tolist(),
+                    "vorticity_500hPa": (hourly["vo500"][i] * 1e5).tolist(),
                     "wind_gusts_10m": (hourly["gust"][i] * 1.943844).tolist(),
                     "cape": hourly["cape"][i].tolist(),
                     "total_column_integrated_water_vapour": hourly["tcwv"][i].tolist(),

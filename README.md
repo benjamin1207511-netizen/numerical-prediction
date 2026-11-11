@@ -1,6 +1,6 @@
 # BAMC ECMWF 华南预报
 
-以 ECMWF IFS 预报图为主的轻量网站：18 类产品，每天 **00Z / 12Z** 两个起报场，从 +24h 到 +240h 每 6 小时一帧，共 37 帧。
+以 ECMWF IFS 预报图为主的轻量网站：24 类产品，每天 **00Z / 12Z** 两个起报场，从 +24h 到 +240h 每 6 小时一帧，共 37 帧。
 
 - **数据源：ECMWF Open Data 直连**（`data.ecmwf.int`，IFS 0.25° GRIB2）；Open-Meteo 作为备用
 - 华南区域：**16–28°N、105–121°E**（0.5° 输入、0.25° 绘图）
@@ -47,6 +47,12 @@ python -m pip install numpy scipy matplotlib cartopy eccodes
 | `ecmwf-rh2m` | 2m 相对湿度 |
 | `ecmwf-rh500` | 500hPa 相对湿度 |
 | `ecmwf-cloud` | 总云量（成） |
+| `ecmwf-showalter` | Showalter 指数 |
+| `ecmwf-wind200` | 200hPa 流线 + 散度 |
+| `ecmwf-shear` | 500–925hPa 风切变 |
+| `ecmwf-tdiff` | 850–500hPa 温差 |
+| `ecmwf-vort500` | 500hPa 涡度 + 风 |
+| `ecmwf-theta-diff` | θse(500−850hPa) |
 
 ### 图像样式约定
 
@@ -180,7 +186,7 @@ ecmwf-south-china/
 ├─ run_auto_update_once.bat      # 计划任务调用的单次更新
 ├─ README.md
 ├─ public/               # 前端（index.html / style.css / app.js / robots.txt）
-└─ ecmwf/                # 18 类产品，每类 37 张 PNG + manifest.json
+└─ ecmwf/                # 24 类产品，每类 37 张 PNG + manifest.json
    ├─ combined/  combined-ea/  h500/  h500-ea/ …
    └─ cloud/
 ```
