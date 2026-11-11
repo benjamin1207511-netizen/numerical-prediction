@@ -994,13 +994,6 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
         td850 = grid["interpolate"]([safe_values(p["hourly"]["dew_point_850hPa"], idx) for p in points])
         t500 = grid["interpolate"]([safe_values(p["hourly"]["temperature_500hPa"], idx) for p in points])
         si = showalter_index(t850, td850, t500)
-        # 850hPa 在高原/山区可能低于地面，那里的 SI 无意义，遮掉。
-        sp = grid["interpolate"]([
-            safe_values(p["hourly"]["surface_pressure"], idx)
-            if "surface_pressure" in p["hourly"] else 1000.0
-            for p in points
-        ])
-        si = np.where(sp >= 850.0, si, np.nan)
         levels = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3]
         colors = ["#8b0000", "#e31a1c", "#f57c00", "#fdd835", "#ffffa8",
                   "#7bc96f", "#6baed6", "#c6dbef", "#f7fbff"]

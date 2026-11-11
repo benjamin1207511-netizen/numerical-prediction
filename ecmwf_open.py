@@ -55,7 +55,6 @@ FIELDS = [
     ("t2m", "2t", None),
     ("d2m", "2d", None),
     ("msl", "msl", None),
-    ("sp", "sp", None),
     ("u10", "10u", None),
     ("v10", "10v", None),
     ("gust", ("10fg", "10fg3"), None),  # 96h 之后 Open Data 只提供 3 小时阵风 10fg3
@@ -343,7 +342,7 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
                               "tcwv", "tcc", "gh500", "t500", "t700", "t850",
                               "r700", "r850", "r500", "u500", "v500", "u850",
                               "v850", "u925", "v925", "t925", "r925",
-                              "u200", "v200", "d200", "vo500", "sp", "tp")}
+                              "u200", "v200", "d200", "vo500", "tp")}
 
         for step, payload in step_data.items():
             fields = payload["domains"][name]
@@ -383,7 +382,6 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
                     "precipitation": hourly["precipitation"][i].tolist(),
                     "geopotential_height_500hPa": hourly["gh500"][i].tolist(),
                     "pressure_msl": (hourly["msl"][i] / 100.0).tolist(),
-                    "surface_pressure": (hourly["sp"][i] / 100.0).tolist(),
                     "wind_speed_500hPa": hourly["wind_speed_500hPa"][i].tolist(),
                     "wind_direction_500hPa": hourly["wind_direction_500hPa"][i].tolist(),
                     "wind_speed_850hPa": hourly["wind_speed_850hPa"][i].tolist(),
