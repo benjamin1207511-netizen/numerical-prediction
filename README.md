@@ -1,6 +1,6 @@
 # BAMC ECMWF 华南预报
 
-以 ECMWF IFS 预报图为主的轻量网站：16 类产品，每天 **00Z / 12Z** 两个起报场，从 +24h 到 +240h 每 6 小时一帧，共 37 帧。
+以 ECMWF IFS 预报图为主的轻量网站：18 类产品，每天 **00Z / 12Z** 两个起报场，从 +24h 到 +240h 每 6 小时一帧，共 37 帧。
 
 - **数据源：ECMWF Open Data 直连**（`data.ecmwf.int`，IFS 0.25° GRIB2）；Open-Meteo 作为备用
 - 华南区域：**16–28°N、105–121°E**（0.5° 输入、0.25° 绘图）
@@ -32,6 +32,8 @@ python -m pip install numpy scipy matplotlib cartopy eccodes
 | `ecmwf-southchina` | 华南 · 降雨 + 500hPa 高度 + 850hPa 风 |
 | `ecmwf-southchina-ea` | 东亚 · 降雨 + 500hPa 高度 + 850hPa 风 |
 | `ecmwf-t2m` | 2m 气温 |
+| `ecmwf-theta-se850` | 850hPa 假相当位温 + 风 |
+| `ecmwf-vapor925` | 925hPa 水汽通量 + 风 |
 | `ecmwf-h500` | 华南 · 500hPa 风场 |
 | `ecmwf-h500-ea` | 东亚 · 500hPa 风场 |
 | `ecmwf-rain24` | 24h 降水 |
@@ -55,8 +57,12 @@ python -m pip install numpy scipy matplotlib cartopy eccodes
 - 24h 阵风、地面风场：15 级风速色阶（0.3–56.1 m/s），>56.1 m/s 红色，<0.3 m/s 白色。
 - 总云量：4–9 成蓝色渐变，<4 成白色，>9 成深蓝。
 - 风矢取样：华南 0.5°、东亚 1.5°，线宽较细，长度约为旧版 1.5 倍。
+- 新增 **850hPa 假相当位温 θse**：用 `t850` + `r850` 按 Bolton 公式计算，填色 320–360 K（2 K 一档），叠加 850hPa 风矢。
+- 新增 **925hPa 水汽通量**：比湿 × 风速 / g，填色 0–40 g/(cm·hPa·s)，叠加 925hPa 风矢。
 - 广东省界用黄色描边。
 - 顶栏本地时间在电脑端和手机端都显示。
+
+> 注：ECMWF Open Data 只有 0.25°（`ifs/0p25`），没有 0.1°；所以本项目所有图都是 0.25° 数据，华南绘图网格 0.25°。
 
 ## 更新图片
 
@@ -174,7 +180,7 @@ ecmwf-south-china/
 ├─ run_auto_update_once.bat      # 计划任务调用的单次更新
 ├─ README.md
 ├─ public/               # 前端（index.html / style.css / app.js / robots.txt）
-└─ ecmwf/                # 16 类产品，每类 37 张 PNG + manifest.json
+└─ ecmwf/                # 18 类产品，每类 37 张 PNG + manifest.json
    ├─ combined/  combined-ea/  h500/  h500-ea/ …
    └─ cloud/
 ```

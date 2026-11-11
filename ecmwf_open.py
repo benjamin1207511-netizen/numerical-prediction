@@ -65,15 +65,16 @@ FIELDS = [
     ("t500", "t", "500"),
     ("t700", "t", "700"),
     ("t850", "t", "850"),
-    ("d700", "d", "700"),
-    ("d850", "d", "850"),
-    ("r500", "r", "500"),
+    ("r700", "r", "700"),
+    ("r850", "r", "850"),    ("r500", "r", "500"),
     ("u500", "u", "500"),
     ("v500", "v", "500"),
     ("u850", "u", "850"),
     ("v850", "v", "850"),
     ("u925", "u", "925"),
     ("v925", "v", "925"),
+    ("t925", "t", "925"),
+    ("r925", "r", "925"),
 ]
 
 _index_cache: dict[tuple[str, int], list[dict]] = {}
@@ -210,19 +211,69 @@ def _rh_from_dewpoint(t_k: np.ndarray, td_k: np.ndarray) -> np.ndarray:
     return rh
 
 
+def _dewpoint_c(t_k: np.ndarray, rh: np.ndarray) -> np.ndarray:
+    """由气温（K）和相对湿度（%）反算露点（°C）。"""
+    t_c = np.clip(t_k - 273.15, -80.0, 60.0)
+    rh = np.clip(rh, 1.0, 100.0)
+    es = 6.112 * np.exp(17.67 * t_c / (t_c + 243.5))
+    e = np.maximum(rh / 100.0 * es, 1e-6)
+    ln = np.log(e / 6.112)
+    return 243.5 * ln / (17.67 - ln)
+
+
+def _theta_e_k(t_k: np.ndarray, rh: np.ndarray, pressure: float = 850.0) -> np.ndarray:
+    """假相当位温（K），由气温与相对湿度计算（Bolton 1980）。"""
+    tdk = np.clip(_dewpoint_c(t_k, rh) + 273.15, 150.0, 340.0)
+    tk = np.clip(t_k, 150.0, 340.0)
+    td_c = tdk - 273.15
+    es = 6.112 * np.exp(17.67 * td_c / np.clip(td_c + 243.5, 1e-3, None))
+    q = np.clip(0.622 * es / np.maximum(pressure - es, 1.0), 0.0, 0.05)
+    theta = tk * (1000.0 / pressure) ** 0.2854
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        tlcl = 1.0 / (1.0 / (tdk - 56.0) + np.log(tk / tdk) / 800.0) + 56.0
+        theta_e = theta * np.exp((3376.0 / tlcl - 2.54) * q * (1.0 + 0.81 * q))
+    return np.clip(theta_e, 250.0, 420.0)
+
+
 def _step_fields(run_dt: datetime, step: int, domains: dict) -> dict:
     """下载一个 step 的所有字段并采样到各区域的地点网格（带本地缓存）。"""
     cached = _load_cached_step(run_dt, step)
     if cached is not None and set(domains).issubset(cached["domains"]):
-        _log("  step %3dh 使用缓存" % step)
+        required = set()
+        if step in LEADS:
+            required = {key for key, _, _ in FIELDS}
+        else:
+            required = {"t2m"}
+        if step in TP_STEPS:
+            required = set(required) | {"tp"}
+        have = set(next(iter(cached["domains"].values())).keys())
+        missing = required - have
+        if not missing:
+            _log("  step %3dh 使用缓存" % step)
+            return cached
+        _log("  step %3dh 缓存缺 %d 个字段，补下载" % (step, len(missing)))
+        for out_key, param, level in FIELDS:
+            if out_key not in missing:
+                continue
+            for name, dom in domains.items():
+                lat_idx, lon_idx = dom["indices"]
+                cached["domains"][name][out_key] = _fetch_field(
+                    run_dt, step, param, level, lat_idx, lon_idx)
+        if "tp" in missing:
+            for name, dom in domains.items():
+                lat_idx, lon_idx = dom["indices"]
+                cached["domains"][name]["tp"] = _fetch_field(
+                    run_dt, step, "tp", None, lat_idx, lon_idx)
+        _save_cached_step(run_dt, step, cached)
         return cached
 
     result = {"step": step, "domains": {}}
     for name, dom in domains.items():
         result["domains"][name] = {}
     for out_key, param, level in FIELDS:
-        if step not in LEADS:
-            break
+        if step not in LEADS and out_key != "t2m":
+            # 24h 变温需要 lead-24h 的 2m 气温，0/6/12/18h 也取 t2m
+            continue
         for name, dom in domains.items():
             lat_idx, lon_idx = dom["indices"]
             values = _fetch_field(run_dt, step, param, level, lat_idx, lon_idx)
@@ -284,14 +335,15 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
         hourly = {key: np.zeros((npoints, 241), dtype="float32")
                   for key in ("t2m", "d2m", "msl", "u10", "v10", "gust", "cape",
                               "tcwv", "tcc", "gh500", "t500", "t700", "t850",
-                              "d700", "d850", "r500", "u500", "v500", "u850",
-                              "v850", "u925", "v925", "tp")}
+                              "r700", "r850", "r500", "u500", "v500", "u850",
+                              "v850", "u925", "v925", "t925", "r925", "tp")}
 
         for step, payload in step_data.items():
             fields = payload["domains"][name]
             for key, values in fields.items():
-                if values is not None:
-                    hourly[key][:, step] = values
+                if values is None or key not in hourly:
+                    continue
+                hourly[key][:, step] = values
 
         # 派生：降水增量（mm/6h）、风、湿度
         tp_mm = hourly["tp"] * 1000.0
@@ -336,11 +388,15 @@ def fetch_grid(run_iso: str, domains_cfg: dict, log=print) -> dict:
                     "total_column_integrated_water_vapour": hourly["tcwv"][i].tolist(),
                     "cloud_cover": (hourly["tcc"][i] * 100.0).tolist(),
                     "temperature_850hPa": (hourly["t850"][i] - 273.15).tolist(),
-                    "dew_point_850hPa": (hourly["d850"][i] - 273.15).tolist(),
+                    "dew_point_850hPa": _dewpoint_c(hourly["t850"][i], hourly["r850"][i]).tolist(),
+                    "relative_humidity_850hPa": hourly["r850"][i].tolist(),
+                    "theta_e_850": _theta_e_k(hourly["t850"][i], hourly["r850"][i]).tolist(),
                     "temperature_700hPa": (hourly["t700"][i] - 273.15).tolist(),
-                    "dew_point_700hPa": (hourly["d700"][i] - 273.15).tolist(),
+                    "dew_point_700hPa": _dewpoint_c(hourly["t700"][i], hourly["r700"][i]).tolist(),
                     "temperature_500hPa": (hourly["t500"][i] - 273.15).tolist(),
                     "relative_humidity_500hPa": hourly["r500"][i].tolist(),
+                    "temperature_925hPa": (hourly["t925"][i] - 273.15).tolist(),
+                    "relative_humidity_925hPa": hourly["r925"][i].tolist(),
                     "relative_humidity_2m": _rh_from_dewpoint(
                         hourly["t2m"][i], hourly["d2m"][i]).tolist(),
                 },

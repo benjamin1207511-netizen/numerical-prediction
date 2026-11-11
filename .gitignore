@@ -3,6 +3,7 @@ ecmwf/
 ecmwf_build/
 ecmwf_prev/
 _cache/
+_preview/
 .cartopy/
 __pycache__/
 *.pyc

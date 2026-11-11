@@ -105,6 +105,8 @@ VAR_GROUPS = [
         "temperature_500hPa",
         "relative_humidity_2m",
         "relative_humidity_500hPa",
+        "temperature_925hPa",
+        "relative_humidity_925hPa",
     ],
 ]
 
@@ -140,6 +142,18 @@ PRODUCTS = {
         "prefix": "ecmwf_t2m_",
         "title": "2m Temperature",
         "kind": "t2m",
+    },
+    "theta_se850": {
+        "subdir": "theta-se850",
+        "prefix": "ecmwf_theta_se850_",
+        "title": "θse & Wind at 850hPa",
+        "kind": "theta_se850",
+    },
+    "vapor925": {
+        "subdir": "vapor925",
+        "prefix": "ecmwf_vapor925_",
+        "title": "Vapor Flux at 925hPa",
+        "kind": "vapor925",
     },
     "h500": {
         "subdir": "h500",
@@ -553,6 +567,46 @@ def maximum_over(points, key: str, idx: int, hours: int):
     return values
 
 
+def saturation_vapor_pressure(t_c):
+    """饱和水汽压（hPa），Magnus 公式。"""
+    import numpy as np
+
+    t_c = np.clip(np.asarray(t_c, dtype=float), -90.0, 60.0)
+    return 6.112 * np.exp(17.67 * t_c / (t_c + 243.5))
+
+
+def theta_e_850(t_c, td_c, pressure=850.0):
+    """假相当位温（K），Bolton 1980；无效格点返回 NaN。"""
+    import numpy as np
+
+    t_c = np.asarray(t_c, dtype=float)
+    td_c = np.asarray(td_c, dtype=float)
+    valid = np.isfinite(t_c) & np.isfinite(td_c) & (t_c > -80) & (td_c > -80)
+    t_c = np.where(valid, t_c, 0.0)
+    td_c = np.where(valid, np.minimum(td_c, t_c), 0.0)
+    tk = t_c + 273.15
+    tdk = td_c + 273.15
+    e = saturation_vapor_pressure(td_c)
+    q = 0.622 * e / np.maximum(pressure - e, 1e-6)
+    theta = tk * (1000.0 / pressure) ** 0.2854
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        tlcl = 1.0 / (1.0 / (tdk - 56.0) + np.log(tk / tdk) / 800.0) + 56.0
+        theta_e = theta * np.exp((3376.0 / tlcl - 2.54) * q * (1.0 + 0.81 * q))
+    return np.where(valid, theta_e, np.nan)
+
+
+def specific_humidity(t_c, rh, pressure=925.0):
+    """比湿（g/kg），由气温和相对湿度计算；无效格点返回 NaN。"""
+    import numpy as np
+
+    t_c = np.asarray(t_c, dtype=float)
+    rh = np.asarray(rh, dtype=float)
+    valid = np.isfinite(t_c) & np.isfinite(rh)
+    e = np.clip(np.nan_to_num(rh), 0.0, 100.0) / 100.0 * saturation_vapor_pressure(t_c)
+    q = 1000.0 * 0.622 * e / np.maximum(pressure - e, 1e-6)
+    return np.where(valid, q, np.nan)
+
+
 def wind_uv(points, speed_key: str, direction_key: str, idx: int):
     import numpy as np
 
@@ -563,7 +617,7 @@ def wind_uv(points, speed_key: str, direction_key: str, idx: int):
     return u, v
 
 
-def base_map(ax, ccrs, cfeature, domain: str = DEFAULT_DOMAIN):
+def base_map(ax, ccrs, cfeature, domain: str = DEFAULT_DOMAIN, plain: bool = False):
     import numpy as np
 
     d = DOMAINS[domain]
@@ -572,12 +626,13 @@ def base_map(ax, ccrs, cfeature, domain: str = DEFAULT_DOMAIN):
         crs=ccrs.PlateCarree(),
     )
     # 10m 地图包含更完整的海岸线、岛屿、湖泊和省界。
-    ax.add_feature(cfeature.OCEAN.with_scale("10m"), facecolor="#f4f8fb", edgecolor="none", zorder=0)
-    ax.add_feature(cfeature.LAND.with_scale("10m"), facecolor="#f5f0e4", edgecolor="none", zorder=0)
+    if not plain:
+        ax.add_feature(cfeature.OCEAN.with_scale("10m"), facecolor="#f4f8fb", edgecolor="none", zorder=0)
+        ax.add_feature(cfeature.LAND.with_scale("10m"), facecolor="#f5f0e4", edgecolor="none", zorder=0)
     try:
         ax.add_feature(
             cfeature.LAKES.with_scale("10m"),
-            facecolor="#f4f8fb", edgecolor="#7e8b93", linewidth=0.25, zorder=1,
+            facecolor=("none" if plain else "#f4f8fb"), edgecolor="#7e8b93", linewidth=0.25, zorder=1,
         )
     except Exception:
         pass
@@ -588,7 +643,7 @@ def base_map(ax, ccrs, cfeature, domain: str = DEFAULT_DOMAIN):
     try:
         ax.add_feature(
             cfeature.STATES.with_scale("50m"),
-            linewidth=0.32, edgecolor="#aaa49a", zorder=4,
+            linewidth=0.32, edgecolor=("#b45f4d" if plain else "#aaa49a"), zorder=4,
         )
     except Exception:
         pass
@@ -726,7 +781,7 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
     fig = Figure(figsize=(10, 7.2), dpi=140, facecolor="white")
     FigureCanvasAgg(fig)
     ax = fig.add_axes([0.065, 0.075, 0.80, 0.80], projection=ccrs.PlateCarree())
-    base_map(ax, ccrs, cfeature, domain)
+    base_map(ax, ccrs, cfeature, domain, plain=bool(spec.get("plain")))
 
     if kind == "combined":
         rain = grid["interpolate"](accumulate(points, "precipitation", idx, 6))
@@ -794,6 +849,72 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
         finish_figure(
             fig, ax, cf, TEMP_LEVELS,
             [str(x) for x in TEMP_LEVELS], "2m temperature (°C)",
+            spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "theta_se850":
+        if "theta_e_850" in points[0]["hourly"]:
+            theta = grid["interpolate"](
+                [safe_values(p["hourly"]["theta_e_850"], idx) for p in points])
+        else:
+            t850 = grid["interpolate"]([safe_values(p["hourly"]["temperature_850hPa"], idx) for p in points])
+            d850 = grid["interpolate"]([safe_values(p["hourly"]["dew_point_850hPa"], idx) for p in points])
+            theta = theta_e_850(t850, d850, 850.0)
+        levels = list(range(320, 361, 2))
+        cf = ax.contourf(
+            LON, LAT, theta, levels=levels, cmap=matplotlib.colormaps["RdYlBu_r"],
+            extend="both", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cs = ax.contour(
+            LON, LAT, theta, levels=list(range(320, 361, 4)), colors="#5a5a5a",
+            linewidths=0.4, transform=ccrs.PlateCarree(), zorder=5,
+        )
+        ax.clabel(cs, inline=True, fontsize=5.5, fmt="%d")
+        u, v = wind_uv(points, "wind_speed_850hPa", "wind_direction_850hPa", idx)
+        u = grid["interpolate"](u)
+        v = grid["interpolate"](v)
+        ax.barbs(
+            LON[barb_slice], LAT[barb_slice], u[barb_slice], v[barb_slice],
+            transform=ccrs.PlateCarree(), color="#2b4bd8",
+            length=5.8, linewidth=0.38,
+            barb_increments={"half": 5, "full": 10, "flag": 50}, zorder=7,
+        )
+        finish_figure(
+            fig, ax, cf, list(range(320, 361, 5)),
+            [str(x) for x in range(320, 361, 5)], "θse (K)",
+            spec["title"], valid, run_dt, lead, out_path,
+        )
+
+    elif kind == "vapor925":
+        t925 = grid["interpolate"]([safe_values(p["hourly"]["temperature_925hPa"], idx) for p in points])
+        r925 = grid["interpolate"]([safe_values(p["hourly"]["relative_humidity_925hPa"], idx) for p in points])
+        q = specific_humidity(t925, r925, 925.0)
+        u, v = wind_uv(points, "wind_speed_925hPa", "wind_direction_925hPa", idx)
+        u = grid["interpolate"](u)
+        v = grid["interpolate"](v)
+        speed_ms = np.hypot(u, v) * 0.514444
+        flux = q * speed_ms / 9.8
+        f_levels = [0, 5, 10, 15, 20, 25, 30, 35, 40]
+        f_colors = ["#f7fbff", "#deebf7", "#9ecae1", "#6baed6",
+                    "#4292c6", "#2171b5", "#08519c", "#238b45"]
+        cf = ax.contourf(
+            LON, LAT, flux, levels=f_levels, colors=f_colors,
+            extend="both", transform=ccrs.PlateCarree(), zorder=2, antialiased=True,
+        )
+        cf.cmap.set_over("#e31a1c")
+        cs = ax.contour(
+            LON, LAT, flux, levels=list(range(10, 41, 5)), colors="#3b3b3b",
+            linewidths=0.4, transform=ccrs.PlateCarree(), zorder=5,
+        )
+        ax.clabel(cs, inline=True, fontsize=5.5, fmt="%d")
+        ax.barbs(
+            LON[barb_slice], LAT[barb_slice], u[barb_slice], v[barb_slice],
+            transform=ccrs.PlateCarree(), color="#333333",
+            length=5.8, linewidth=0.35,
+            barb_increments={"half": 5, "full": 10, "flag": 50}, zorder=7,
+        )
+        finish_figure(
+            fig, ax, cf, f_levels, [str(x) for x in f_levels], "vapor flux (g/(cm·hPa·s))",
             spec["title"], valid, run_dt, lead, out_path,
         )
 
@@ -1046,7 +1167,7 @@ def main() -> None:
     ap.add_argument("--out", default=str(OUT_DIR), help="输出目录")
     ap.add_argument(
         "--products",
-        default="combined,combined_ea,t2m,h500,h500_ea,rain24,mslp,wind10,wind925,gust24,cape,kindex,pwat,rh2m,rh500,cloud",
+        default="combined,combined_ea,t2m,h500,h500_ea,theta_se850,vapor925,rain24,mslp,wind10,wind925,gust24,cape,kindex,pwat,rh2m,rh500,cloud",
         help="要生成的产品，逗号分隔",
     )
     ap.add_argument(
