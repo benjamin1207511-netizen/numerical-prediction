@@ -339,7 +339,12 @@ def grid_points(step: float = FINE_STEP, domain: str | None = None):
     return lats, lons
 
 
+HTTP_CALLS = 0  # 统计本项目发出的 Open-Meteo 请求数，用于核对免费额度
+
+
 def fetch(url: str, timeout: int = 180) -> bytes:
+    global HTTP_CALLS
+    HTTP_CALLS += 1
     req = urllib.request.Request(
         url,
         headers={
@@ -555,6 +560,7 @@ def fetch_grid(run: str, domain_name: str, groups: list[list[str]]) -> dict:
             }
         )
     log("%s 网格合并完成：%d 个点，%.1fs" % (domain_name, len(merged), time.time() - started))
+    log("累计 Open-Meteo 请求数：%d（本轮）" % HTTP_CALLS)
     return {"run": run, "points": merged}
 
 
