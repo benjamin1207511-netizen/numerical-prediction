@@ -105,8 +105,11 @@ VAR_GROUPS = [
         "temperature_500hPa",
         "relative_humidity_2m",
         "relative_humidity_500hPa",
+        "relative_humidity_850hPa",
         "temperature_925hPa",
         "relative_humidity_925hPa",
+        "wind_speed_200hPa",
+        "wind_direction_200hPa",
     ],
 ]
 
@@ -678,6 +681,33 @@ def showalter_index(t850, td850, t500):
     return np.where(valid, result, np.nan)
 
 
+def grid_gradient_terms(u, v, LON, LAT):
+    """在 0.25° 目标网格上计算 du/dx、du/dy、dv/dx、dv/dy（u,v 单位 m/s）。"""
+    import numpy as np
+
+    earth_r = 6371000.0
+    dlat = np.deg2rad(LAT[1, 0] - LAT[0, 0])
+    dlon = np.deg2rad(LON[0, 1] - LON[0, 0])
+    coslat = np.cos(np.deg2rad(LAT))
+    dudx = np.gradient(u, axis=1) / (earth_r * coslat * dlon)
+    dudy = np.gradient(u, axis=0) / (earth_r * dlat)
+    dvdx = np.gradient(v, axis=1) / (earth_r * coslat * dlon)
+    dvdy = np.gradient(v, axis=0) / (earth_r * dlat)
+    return dudx, dudy, dvdx, dvdy
+
+
+def grid_divergence(u, v, LON, LAT):
+    """由风场差分计算散度，单位 10⁻⁵ s⁻¹。"""
+    dudx, _, _, dvdy = grid_gradient_terms(u, v, LON, LAT)
+    return (dudx + dvdy) * 1e5
+
+
+def grid_vorticity(u, v, LON, LAT):
+    """由风场差分计算相对涡度，单位 10⁻⁵ s⁻¹。"""
+    _, dudy, dvdx, _ = grid_gradient_terms(u, v, LON, LAT)
+    return (dvdx - dudy) * 1e5
+
+
 def wind_uv(points, speed_key: str, direction_key: str, idx: int):
     import numpy as np
 
@@ -1016,8 +1046,11 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
         u, v = wind_uv(points, "wind_speed_200hPa", "wind_direction_200hPa", idx)
         u = grid["interpolate"](u)
         v = grid["interpolate"](v)
-        div = grid["interpolate"](
-            [safe_values(p["hourly"]["divergence_200hPa"], idx) for p in points])
+        if "divergence_200hPa" in points[0]["hourly"]:
+            div = grid["interpolate"](
+                [safe_values(p["hourly"]["divergence_200hPa"], idx) for p in points])
+        else:
+            div = grid_divergence(u * 0.514444, v * 0.514444, LON, LAT)
         levels = [0, 2, 4, 6, 8, 10]
         colors = ["#f7fbff", "#c6dbef", "#6baed6", "#7bc96f", "#fdd835"]
         cf = ax.contourf(
@@ -1082,10 +1115,14 @@ def render_product(data: dict, run_dt: datetime, lead: int, spec: dict, out_path
         )
 
     elif kind == "vort500":
-        vo = grid["interpolate"]([safe_values(p["hourly"]["vorticity_500hPa"], idx) for p in points])
         u, v = wind_uv(points, "wind_speed_500hPa", "wind_direction_500hPa", idx)
         u = grid["interpolate"](u)
         v = grid["interpolate"](v)
+        if "vorticity_500hPa" in points[0]["hourly"]:
+            vo = grid["interpolate"](
+                [safe_values(p["hourly"]["vorticity_500hPa"], idx) for p in points])
+        else:
+            vo = grid_vorticity(u * 0.514444, v * 0.514444, LON, LAT)
         levels = [0, 2, 4, 6, 8, 10]
         colors = ["#f7fbff", "#bdd7e7", "#6baed6", "#7bc96f", "#fdd835"]
         cf = ax.contourf(
