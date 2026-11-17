@@ -609,3 +609,21 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .layer, .loadbar span, .toast, .placeholder { transition: none !important; }
 }
+
+/* 总览按钮 */
+.tbtn.ovbtn {
+  width: auto;
+  min-width: 48px;
+  padding: 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.tbtn.ovbtn.active {
+  background: #1f6feb;
+  color: #ffffff;
+  border-color: #1f6feb;
+}
+.tbtn.ovbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

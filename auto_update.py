@@ -214,6 +214,9 @@ def publish_build(build_dir: Path) -> None:
             if not src.is_file():
                 raise RuntimeError("待发布图片不存在：%s" % src)
             shutil.copy2(src, live_dir / name)
+        overview = str(manifest.get("overview") or "")
+        if overview and (src_dir / overview).is_file():
+            shutil.copy2(src_dir / overview, live_dir / overview)
         log("已复制 %s 的 %d 张图片" % (src_dir.name, len(manifest.get("frames") or [])))
 
     # 第二阶段：逐产品原子替换 manifest。
@@ -228,6 +231,7 @@ def publish_build(build_dir: Path) -> None:
     for subdir, manifest in manifests.items():
         live_dir = LIVE_DIR / subdir
         keep = {str(frame.get("file") or "") for frame in manifest.get("frames") or []}
+        keep.add(str(manifest.get("overview") or ""))
         for old in live_dir.glob("*.png"):
             if old.name not in keep:
                 try:
@@ -257,6 +261,7 @@ def prune_live() -> int:
         except (OSError, ValueError):
             continue
         keep = {str(frame.get("file") or "") for frame in data.get("frames") or []}
+        keep.add(str(data.get("overview") or ""))
         for png in sub.glob("*.png"):
             if png.name not in keep:
                 try:

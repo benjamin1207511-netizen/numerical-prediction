@@ -70,6 +70,7 @@ WEST, SOUTH, EAST, NORTH = 105.0, 16.0, 121.0, 28.0
 FINE_STEP = 0.25
 # 240h 数据量较大，下载网格按 domain 的 fetch_step；绘图用 fine_step。
 LEADS = list(range(24, 241, 6))
+OVERVIEW_STEPS = list(range(24, 241, 12))  # 总览：每 12 小时一个，共 19 个小图
 SINGLE_RUN_URL = "https://single-runs-api.open-meteo.com/v1/forecast"
 MAIN_RUN_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -1413,6 +1414,72 @@ def _render_product_job(product_id: str, run_iso: str, out_dir_str: str) -> str:
     return product_id
 
 
+def make_overview(run_dt: datetime, spec: dict, subdir: Path, out_path: Path) -> Path | None:
+    """把 +24h…+240h 每 12h 一帧裁出地图区，拼成 5×4 总览，右下角放共享色标。"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.image as mpimg
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    panels = []
+    for step in OVERVIEW_STEPS:
+        valid = run_dt + timedelta(hours=step)
+        path = subdir / (spec["prefix"] + valid.strftime("%Y%m%d%H") + ".png")
+        if path.exists():
+            panels.append((step, path))
+    if not panels:
+        log("总览：没有可用的单帧图（%s）" % spec["subdir"])
+        return None
+
+    first = mpimg.imread(panels[0][1])
+    h, w = first.shape[:2]
+    x0, x1 = int(0.065 * w) + 3, int(0.865 * w) - 1
+    y0, y1 = int((1 - 0.875) * h), int((1 - 0.075) * h)
+    colorbar_crop = first[int(0.10 * h):int(0.90 * h), int(0.868 * w):int(0.995 * w)]
+
+    cols, rows = 5, 4
+    fig = Figure(figsize=(13.4, 9.0), dpi=150, facecolor="white")
+    FigureCanvasAgg(fig)
+    fig.text(0.028, 0.980, spec["title"], fontsize=15.5, fontweight="bold",
+             ha="left", va="top")
+    fig.text(0.972, 0.980, "%s UTC · +24–240 h" % run_dt.strftime("%Y-%m-%d %H"),
+             fontsize=10.5, ha="right", va="top")
+    fig.text(0.028, 0.953, "Overview · every 12 h · %d panels" % len(panels),
+             fontsize=9, color="#555", ha="left", va="top")
+
+    left, right = 0.020, 0.900
+    gap_x, gap_y = 0.010, 0.018
+    width = (right - left - gap_x * (cols - 1)) / cols
+    panel_ratio = (y1 - y0) / (x1 - x0)
+    height = width * (13.4 / 9.0) * panel_ratio
+    top = 0.925
+    for index, (step, path) in enumerate(panels[: cols * rows]):
+        row, col = divmod(index, cols)
+        row_count = min(cols, len(panels) - row * cols)
+        offset = (cols - row_count) * (width + gap_x) / 2  # 末行不足时居中
+        x = left + offset + col * (width + gap_x)
+        y = top - (row + 1) * height - row * gap_y
+        ax = fig.add_axes([x, y, width, height])
+        ax.imshow(mpimg.imread(path)[y0:y1, x0:x1])
+        ax.set_axis_off()
+        ax.set_title("+%dh" % step, fontsize=9, loc="left", pad=2, color="#111111")
+
+    # 共享色标：从单帧图裁下来，贴到右侧留白处
+    ax = fig.add_axes([0.915, 0.14, 0.072, 0.70])
+    ax.imshow(colorbar_crop, aspect="auto")
+    ax.set_axis_off()
+
+    fig.text(0.028, 0.016, "Init: %s UTC" % run_dt.strftime("%Y-%m-%d %H"),
+             fontsize=7.5, color="#666", ha="left", va="bottom")
+    fig.text(0.972, 0.016, "www.bamc.top", fontsize=10, ha="right", va="bottom")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150, facecolor="white")
+    fig.clf()
+    log("总览图 → %s" % out_path.name)
+    return out_path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="生成华南 ECMWF IFS 预报图")
     ap.add_argument("--run", default="", help="起报场，例如 2026-10-20T00:00")
@@ -1431,6 +1498,9 @@ def main() -> None:
         "--source", choices=("openmeteo", "ecmwf"), default=os.environ.get("BAMC_SOURCE", "openmeteo"),
         help="数据源：openmeteo（默认）或 ecmwf（ECMWF Open Data 直连）",
     )
+    ap.add_argument("--overview-only", action="store_true",
+                    help="不下载/不重绘，只用已有单帧图重做总览并更新 manifest")
+    ap.add_argument("--no-overview", action="store_true", help="不生成总览图")
     args = ap.parse_args()
 
     if args.source == "ecmwf":
@@ -1445,6 +1515,28 @@ def main() -> None:
     unknown = [x for x in selected if x not in PRODUCTS]
     if unknown:
         raise SystemExit("未知产品：%s" % ", ".join(unknown))
+
+    if args.overview_only:
+        stamp = run_dt.strftime("%Y%m%d%H")
+        for product_id in selected:
+            spec = PRODUCTS[product_id]
+            subdir = out_dir / spec["subdir"]
+            manifest_path = subdir / "manifest.json"
+            if not manifest_path.is_file():
+                log("跳过 %s：没有 manifest" % product_id)
+                continue
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            run_text = data.get("run") or run_dt.strftime("%Y-%m-%d %H:%M UTC")
+            overview = make_overview(
+                run_dt, spec, subdir, subdir / ("overview_%s.png" % stamp))
+            if overview is not None:
+                data["overview"] = overview.name
+                manifest_path.write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                log("已更新 %s（overview，run %s）" % (manifest_path, run_text))
+        return
 
     required_domains = {PRODUCTS[p].get("domain", DEFAULT_DOMAIN) for p in selected}
     groups_by_domain = {"sc": VAR_GROUPS, "ea": EA_VAR_GROUPS}
@@ -1565,12 +1657,20 @@ def main() -> None:
                     "file": spec["prefix"] + stamp + ".png",
                 }
             )
+        overview_name = ""
+        if not args.no_overview:
+            overview = make_overview(
+                run_dt, spec, subdir,
+                subdir / ("overview_%s.png" % run_dt.strftime("%Y%m%d%H")))
+            if overview is not None:
+                overview_name = overview.name
         manifest = {
             "product": product_id,
             "run": run_dt.strftime("%Y-%m-%d %H:%M UTC"),
             "run_iso": run_dt.isoformat(),
             "generated": generated,
             "source": "ECMWF IFS 0.25° via Open-Meteo",
+            "overview": overview_name,
             "region": {
                 "west": DOMAINS[domain_name]["west"],
                 "south": DOMAINS[domain_name]["south"],

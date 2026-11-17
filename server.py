@@ -465,6 +465,7 @@ def load_frames(pid: str) -> dict:
         "fetched": int(time.time()),
         "run": manifest.get("run"),
         "generated": manifest.get("generated"),
+        "overview": manifest.get("overview"),
         "source": ECMWF_PAGE,
     }
 
@@ -615,6 +616,7 @@ class Handler(BaseHTTPRequestHandler):
                 "forecast": True,
                 "run": data.get("run"),
                 "generated": data.get("generated"),
+                "overview": data.get("overview"),
                 "count": len(frames),
                 "frames": [public_frame(f) for f in frames],
                 "stale": bool(data.get("stale")),
@@ -628,13 +630,20 @@ class Handler(BaseHTTPRequestHandler):
         pid = (qs.get("p") or [""])[0]
         stamp = (qs.get("s") or [""])[0]
         dl = (qs.get("dl") or ["0"])[0] in ("1", "true")
-        if pid not in PRODUCT_MAP or not STAMP_RE.fullmatch(stamp or ""):
+        is_overview = stamp == "overview"
+        if pid not in PRODUCT_MAP or (not is_overview and not STAMP_RE.fullmatch(stamp or "")):
             return self._json({"error": "参数不合法"}, 400)
-        frame = resolve_frame(pid, stamp)
-        if not frame:
-            return self._json({"error": "图像不存在"}, 404)
-
-        target = (ECMWF_DIR / frame["file"]).resolve()
+        if is_overview:
+            data = get_frames(pid)
+            name = str(data.get("overview") or "")
+            if not name:
+                return self._json({"error": "总览图不存在"}, 404)
+            target = (ECMWF_DIR / str(PRODUCT_MAP[pid].get("subdir") or "") / name).resolve()
+        else:
+            frame = resolve_frame(pid, stamp)
+            if not frame:
+                return self._json({"error": "图像不存在"}, 404)
+            target = (ECMWF_DIR / frame["file"]).resolve()
         try:
             target.relative_to(ECMWF_DIR.resolve())
         except ValueError:
@@ -646,7 +655,7 @@ class Handler(BaseHTTPRequestHandler):
         # 图片文件名在重新生成后通常保持不变，不能使用 immutable 长缓存。
         headers = {"Cache-Control": "no-cache"}
         if dl:
-            fname = "%s_%s.png" % (pid, stamp)
+            fname = "%s_%s.png" % (pid, "overview" if is_overview else stamp)
             headers["Content-Disposition"] = (
                 "attachment; filename=\"%s\"; filename*=UTF-8''%s"
                 % (fname, urllib.parse.quote(fname))

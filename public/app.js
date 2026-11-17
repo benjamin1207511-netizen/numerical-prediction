@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  const IMG_VERSION = "20261021a";
+  const IMG_VERSION = "20261117a";
   const AUTO_REFRESH_MS = 5 * 60 * 1000;
   const DEFAULT_PRODUCT = "ecmwf-southchina";
 
@@ -42,6 +42,7 @@
     playIcon: $("playIcon"),
     btnNext: $("btnNext"),
     btnLast: $("btnLast"),
+    btnOverview: $("btnOverview"),
     productSelect: $("productSelect"),
     timeSelect: $("timeSelect"),
     speedSelect: $("speedSelect"),
@@ -77,6 +78,8 @@
     loadSeq: 0,
     active: "a",
     currentStamp: "",
+    overview: false,
+    overviewFile: "",
     hasImage: false,
     zoom: 1,
     panX: 0,
@@ -203,7 +206,8 @@
   }
 
   function imgUrl(frame) {
-    return "/api/img?p=" + encodeURIComponent(state.product) + "&s=" + encodeURIComponent(frame.s) +
+    const stamp = frame && frame.s === "overview" ? "overview" : frame.s;
+    return "/api/img?p=" + encodeURIComponent(state.product) + "&s=" + encodeURIComponent(stamp) +
       "&v=" + encodeURIComponent(IMG_VERSION);
   }
 
@@ -327,6 +331,19 @@
     progress(8);
   }
 
+  function setOverview(on) {
+    if (!state.overviewFile) return;
+    state.overview = Boolean(on);
+    if (els.btnOverview) els.btnOverview.classList.toggle("active", state.overview);
+    if (state.overview) {
+      pause();
+      setLayerImage({ s: "overview" });
+      if (els.productNote) els.productNote.textContent = "总览 · 每 12 小时一帧（+24–240h）";
+    } else {
+      showFrame(state.idx, true);
+    }
+  }
+
   function setLayerImage(frame, forceReload) {
     if (!frame) return;
     if (!forceReload && state.hasImage && state.currentStamp === frame.s) {
@@ -389,6 +406,10 @@
 
   function showFrame(index, forceReload) {
     if (!state.frames.length) return;
+    if (state.overview) {
+      state.overview = false;
+      if (els.btnOverview) els.btnOverview.classList.remove("active");
+    }
     const next = Math.max(0, Math.min(state.frames.length - 1, Number(index) || 0));
     state.idx = next;
     const frame = state.frames[next];
@@ -442,6 +463,12 @@
       state.runUtc = parseRun(data.run);
       state.generated = data.generated || "";
       state.productMeta = Object.assign({}, target, data);
+      state.overviewFile = data.overview || "";
+      state.overview = false;
+      if (els.btnOverview) {
+        els.btnOverview.classList.remove("active");
+        els.btnOverview.disabled = !state.overviewFile;
+      }
       updateMeta(data);
       fillTimeSelect();
 
@@ -593,6 +620,10 @@
     els.btnPrev.addEventListener("click", () => { pause(); showFrame(state.idx - 1); });
     els.btnNext.addEventListener("click", () => { pause(); showFrame(state.idx + 1); });
     els.btnLast.addEventListener("click", () => { pause(); showFrame(state.frames.length - 1); });
+
+    if (els.btnOverview) {
+      els.btnOverview.addEventListener("click", () => setOverview(!state.overview));
+    }
 
     els.slider.addEventListener("input", (event) => {
       pause();
