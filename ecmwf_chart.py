@@ -320,6 +320,131 @@ CLOUD_LABELS = ["4", "5", "6", "7", "8", "9"]
 CLOUD_COLORS = ["#EAFCFC", "#BAF6FC", "#96EAFC", "#78D2FC", "#54AEFC"]
 CLOUD_OVER = "#3684FC"
 
+# 总览图底部共享色标（按产品 kind 取），与单帧图的色标保持一致。
+_OVERVIEW_CBARS = {
+    "combined": dict(levels=RAIN_6H_LEVELS, colors=RAIN_6H_COLORS, ticks=RAIN_6H_LEVELS,
+                     labels=["0.1", "1", "4", "13", "25", "60", "120", "250"],
+                     title="6h rainfall (mm)", extend="max"),
+    "t2m": dict(levels=TEMP_LEVELS, colors=TEMP_COLORS, ticks=TEMP_LEVELS,
+                labels=[str(x) for x in TEMP_LEVELS],
+                title="2m temperature (\u00b0C)", extend="both"),
+    "theta_se850": dict(levels=list(range(320, 361, 2)), cmap="RdYlBu_r",
+                        ticks=list(range(320, 361, 5)),
+                        labels=[str(x) for x in range(320, 361, 5)],
+                        title="\u03b8se (K)", extend="both"),
+    "vapor925": dict(levels=[0, 5, 10, 15, 20, 25, 30, 35, 40],
+                     colors=["#f7fbff", "#deebf7", "#9ecae1", "#6baed6",
+                             "#4292c6", "#2171b5", "#08519c", "#238b45"],
+                     ticks=[0, 5, 10, 15, 20, 25, 30, 35, 40],
+                     labels=[str(x) for x in range(0, 41, 5)],
+                     title="vapor flux (g/(cm\u00b7hPa\u00b7s))", extend="both",
+                     over="#e31a1c"),
+    "showalter": dict(levels=[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3],
+                      colors=["#8b0000", "#e31a1c", "#f57c00", "#fdd835", "#ffffa8",
+                              "#7bc96f", "#6baed6", "#c6dbef", "#f7fbff"],
+                      ticks=list(range(-5, 4)), labels=[str(x) for x in range(-5, 4)],
+                      title="Showalter index (\u00b0C)", extend="both"),
+    "wind200": dict(levels=[0, 2, 4, 6, 8, 10],
+                    colors=["#f7fbff", "#c6dbef", "#6baed6", "#7bc96f", "#fdd835"],
+                    ticks=[0, 2, 4, 6, 8, 10], labels=[str(x) for x in range(0, 11, 2)],
+                    title="divergence (10\u207b\u2075 s\u207b\u00b9)", extend="max",
+                    over="#e31a1c"),
+    "shear": dict(levels=[5, 10, 15, 20, 25, 30, 40, 50, 60, 75],
+                  colors=["#d9f0a3", "#addd8e", "#ffeda0", "#fed976", "#fd8d3c",
+                          "#e31a1c", "#c51b8a", "#f768a1", "#fbb4b9"],
+                  ticks=[5, 10, 15, 20, 25, 30, 40, 50, 60, 75],
+                  labels=[str(x) for x in [5, 10, 15, 20, 25, 30, 40, 50, 60, 75]],
+                  title="wind shear (m/s)", extend="both"),
+    "tdiff": dict(levels=[18, 20, 22, 24, 26, 28, 30, 32, 34], cmap="RdYlBu_r",
+                  ticks=[18, 20, 22, 24, 26, 28, 30, 32, 34],
+                  labels=[str(x) for x in range(18, 35, 2)],
+                  title="850-500hPa \u0394T (K)", extend="both"),
+    "vort500": dict(levels=[0, 2, 4, 6, 8, 10],
+                    colors=["#f7fbff", "#bdd7e7", "#6baed6", "#7bc96f", "#fdd835"],
+                    ticks=[0, 2, 4, 6, 8, 10], labels=[str(x) for x in range(0, 11, 2)],
+                    title="vorticity (10\u207b\u2075 s\u207b\u00b9)", extend="max",
+                    over="#e31a1c", under="#ffffff"),
+    "theta_diff": dict(levels=[-24, -16, -8, 0, 8, 16, 24], cmap="RdYlBu_r",
+                       ticks=[-24, -16, -8, 0, 8, 16, 24],
+                       labels=[str(x) for x in [-24, -16, -8, 0, 8, 16, 24]],
+                       title="\u03b8se(500) - \u03b8se(850) (K)", extend="both"),
+    "h500": dict(levels=HEIGHT_FILL_LEVELS, colors=HEIGHT_FILL_COLORS,
+                 ticks=[5800, 5840, 5880, 5920, 5960],
+                 labels=["580", "584", "588", "592", "596"],
+                 title="500hPa height (dam)", extend="both"),
+    "rain24": dict(levels=RAIN_24H_LEVELS, colors=RAIN_24H_COLORS, ticks=RAIN_24H_LEVELS,
+                   labels=["0.1", "1", "10", "25", "50", "100", "250"],
+                   title="24h rainfall (mm)", extend="max"),
+    "mslp": dict(levels=MSLP_LEVELS, cmap="RdYlBu",
+                 ticks=[990, 995, 1000, 1005, 1010, 1015, 1020, 1025, 1030],
+                 labels=[str(x) for x in range(990, 1031, 5)],
+                 title="MSLP (hPa)", extend="both"),
+    "wind10": dict(levels=WIND_SPEED_LEVELS, colors=WIND_SPEED_COLORS,
+                   ticks=WIND_SPEED_LEVELS, labels=WIND_SPEED_LABELS,
+                   title="10m wind (m/s)", extend="both",
+                   over="#ff1900", under="#ffffff"),
+    "wind925": dict(levels=WIND925_LEVELS, cmap="YlGnBu", ticks=WIND925_LEVELS,
+                    labels=[str(x) for x in WIND925_LEVELS],
+                    title="925hPa wind (m/s)", extend="max"),
+    "gust24": dict(levels=WIND_SPEED_LEVELS, colors=WIND_SPEED_COLORS,
+                   ticks=WIND_SPEED_LEVELS, labels=WIND_SPEED_LABELS,
+                   title="24h gust (m/s)", extend="both",
+                   over="#ff1900", under="#ffffff"),
+    "cape": dict(levels=CAPE_LEVELS, cmap="YlOrRd",
+                 ticks=[0, 500, 1000, 2000, 3000, 4000, 5000],
+                 labels=["0", "500", "1000", "2000", "3000", "4000", "5000"],
+                 title="CAPE (J/kg)", extend="max"),
+    "kindex": dict(levels=K_LEVELS, cmap="Spectral_r", ticks=K_LEVELS,
+                   labels=[str(x) for x in K_LEVELS],
+                   title="K index (\u00b0C)", extend="both"),
+    "pwat": dict(levels=PWAT_LEVELS, cmap="YlGnBu", ticks=PWAT_LEVELS,
+                 labels=[str(x) for x in PWAT_LEVELS],
+                 title="PWAT (mm)", extend="max"),
+    "rh2m": dict(levels=RH_LEVELS, cmap="YlGnBu",
+                 ticks=[0, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                 labels=["0", "20", "30", "40", "50", "60", "70", "80", "90", "100"],
+                 title="relative humidity (%)", extend="both"),
+    "rh500": dict(levels=RH_LEVELS, cmap="YlGnBu",
+                  ticks=[0, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                  labels=["0", "20", "30", "40", "50", "60", "70", "80", "90", "100"],
+                  title="relative humidity (%)", extend="both"),
+    "cloud": dict(levels=CLOUD_LEVELS, colors=CLOUD_COLORS, ticks=CLOUD_LEVELS,
+                  labels=CLOUD_LABELS, title="total cloud cover (tenths)",
+                  extend="max", over=CLOUD_OVER),
+}
+
+
+def _overview_mappable(kind: str):
+    """按产品 kind 生成总览图底部色标用的 ScalarMappable。"""
+    import matplotlib
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import BoundaryNorm, ListedColormap, Normalize
+
+    spec = _OVERVIEW_CBARS[kind]
+    levels = spec["levels"]
+    colors = spec.get("colors")
+    if colors:
+        cmap = ListedColormap(colors)
+        if spec.get("over"):
+            cmap.set_over(spec["over"])
+        if spec.get("under"):
+            cmap.set_under(spec["under"])
+        norm = BoundaryNorm(levels, cmap.N)
+    else:
+        cmap = matplotlib.colormaps[spec["cmap"]]
+        if spec.get("over") or spec.get("under"):
+            cmap = cmap.copy()
+            if spec.get("over"):
+                cmap.set_over(spec["over"])
+            if spec.get("under"):
+                cmap.set_under(spec["under"])
+        norm = Normalize(vmin=levels[0], vmax=levels[-1])
+    sm = ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    return sm, spec
+
+
+
 
 def log(msg: str) -> None:
     print("[%s] %s" % (time.strftime("%H:%M:%S"), msg), flush=True)
@@ -1415,7 +1540,7 @@ def _render_product_job(product_id: str, run_iso: str, out_dir_str: str) -> str:
 
 
 def make_overview(run_dt: datetime, spec: dict, subdir: Path, out_path: Path) -> Path | None:
-    """把 +24h…+240h 每 12h 一帧裁出地图区，拼成 5×4 总览，右下角放共享色标。"""
+    """把一个产品的 +24h…+240h（每 12h）单帧拼成一张总览，底部放共享色标。"""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.image as mpimg
@@ -1432,47 +1557,58 @@ def make_overview(run_dt: datetime, spec: dict, subdir: Path, out_path: Path) ->
         log("总览：没有可用的单帧图（%s）" % spec["subdir"])
         return None
 
+    kind = spec["kind"]
+    if kind not in _OVERVIEW_CBARS:
+        log("总览：%s 没有定义色标，跳过" % kind)
+        return None
+    sm, cbar = _overview_mappable(kind)
+
     first = mpimg.imread(panels[0][1])
     h, w = first.shape[:2]
     x0, x1 = int(0.065 * w) + 3, int(0.865 * w) - 1
     y0, y1 = int((1 - 0.875) * h), int((1 - 0.075) * h)
-    colorbar_crop = first[int(0.10 * h):int(0.90 * h), int(0.868 * w):int(0.995 * w)]
 
-    cols, rows = 5, 4
-    fig = Figure(figsize=(13.4, 9.0), dpi=150, facecolor="white")
+    fig = Figure(figsize=(13.2, 10.2), dpi=150, facecolor="white")
     FigureCanvasAgg(fig)
-    fig.text(0.028, 0.980, spec["title"], fontsize=15.5, fontweight="bold",
+    fig.text(0.035, 0.985, spec["title"], fontsize=15, fontweight="bold",
              ha="left", va="top")
-    fig.text(0.972, 0.980, "%s UTC · +24–240 h" % run_dt.strftime("%Y-%m-%d %H"),
+    fig.text(0.975, 0.985,
+             "%s UTC  ·  +%dh–+%dh  ·  %d frames"
+             % (run_dt.strftime("%Y-%m-%d %H"), OVERVIEW_STEPS[0],
+                OVERVIEW_STEPS[-1], len(panels)),
              fontsize=10.5, ha="right", va="top")
-    fig.text(0.028, 0.953, "Overview · every 12 h · %d panels" % len(panels),
+    fig.text(0.035, 0.955, "ECMWF IFS 0.25°",
              fontsize=9, color="#555", ha="left", va="top")
 
-    left, right = 0.020, 0.900
-    gap_x, gap_y = 0.010, 0.018
-    width = (right - left - gap_x * (cols - 1)) / cols
-    panel_ratio = (y1 - y0) / (x1 - x0)
-    height = width * (13.4 / 9.0) * panel_ratio
-    top = 0.925
+    cols, rows = 5, 4
+    left, right = 0.035, 0.975
+    gap, row_gap = 0.012, 0.022
+    top_y = 0.91
+    aspect = (x1 - x0) / (y1 - y0)
+    slot = (right - left - gap * (cols - 1)) / cols
+    max_h = (top_y - 0.16 - row_gap * (rows - 1)) / rows
+    height = min(slot * (13.2 / 10.2) / aspect, max_h)
+    width = height * (10.2 / 13.2) * aspect
+    grid_w = cols * width + (cols - 1) * gap
+    x_start = left + (right - left - grid_w) / 2
     for index, (step, path) in enumerate(panels[: cols * rows]):
         row, col = divmod(index, cols)
-        row_count = min(cols, len(panels) - row * cols)
-        offset = (cols - row_count) * (width + gap_x) / 2  # 末行不足时居中
-        x = left + offset + col * (width + gap_x)
-        y = top - (row + 1) * height - row * gap_y
-        ax = fig.add_axes([x, y, width, height])
+        y = top_y - (row + 1) * height - row * row_gap
+        ax = fig.add_axes([x_start + col * (width + gap), y, width, height])
         ax.imshow(mpimg.imread(path)[y0:y1, x0:x1])
         ax.set_axis_off()
-        ax.set_title("+%dh" % step, fontsize=9, loc="left", pad=2, color="#111111")
+        ax.set_title("+%dh" % step, fontsize=9.5, loc="left", pad=2, color="#111111")
 
-    # 共享色标：从单帧图裁下来，贴到右侧留白处
-    ax = fig.add_axes([0.915, 0.14, 0.072, 0.70])
-    ax.imshow(colorbar_crop, aspect="auto")
-    ax.set_axis_off()
+    cax = fig.add_axes([0.28, 0.075, 0.44, 0.012])
+    cb = fig.colorbar(sm, cax=cax, orientation="horizontal",
+                      ticks=cbar["ticks"], extend=cbar.get("extend", "neither"))
+    cb.ax.tick_params(labelsize=8, length=2)
+    cb.set_ticklabels(cbar["labels"])
+    cb.set_label(cbar["title"], fontsize=8, labelpad=3)
 
-    fig.text(0.028, 0.016, "Init: %s UTC" % run_dt.strftime("%Y-%m-%d %H"),
+    fig.text(0.975, 0.015, "www.bamc.top", fontsize=10, ha="right", va="bottom")
+    fig.text(0.035, 0.015, "Init: %s UTC" % run_dt.strftime("%Y-%m-%d %H"),
              fontsize=7.5, color="#666", ha="left", va="bottom")
-    fig.text(0.972, 0.016, "www.bamc.top", fontsize=10, ha="right", va="bottom")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150, facecolor="white")
     fig.clf()

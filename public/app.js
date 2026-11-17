@@ -43,6 +43,7 @@
     btnNext: $("btnNext"),
     btnLast: $("btnLast"),
     btnOverview: $("btnOverview"),
+    btnSingle: $("btnSingle"),
     productSelect: $("productSelect"),
     timeSelect: $("timeSelect"),
     speedSelect: $("speedSelect"),
@@ -334,7 +335,11 @@
   function setOverview(on) {
     if (!state.overviewFile) return;
     state.overview = Boolean(on);
-    if (els.btnOverview) els.btnOverview.classList.toggle("active", state.overview);
+    if (els.btnOverview) {
+      els.btnOverview.classList.toggle("active", state.overview);
+      els.btnOverview.disabled = !state.overviewFile;
+    }
+    if (els.btnSingle) els.btnSingle.classList.toggle("active", !state.overview);
     if (state.overview) {
       pause();
       setLayerImage({ s: "overview" });
@@ -469,6 +474,7 @@
         els.btnOverview.classList.remove("active");
         els.btnOverview.disabled = !state.overviewFile;
       }
+      if (els.btnSingle) els.btnSingle.classList.add("active");
       updateMeta(data);
       fillTimeSelect();
 
@@ -622,7 +628,10 @@
     els.btnLast.addEventListener("click", () => { pause(); showFrame(state.frames.length - 1); });
 
     if (els.btnOverview) {
-      els.btnOverview.addEventListener("click", () => setOverview(!state.overview));
+      els.btnOverview.addEventListener("click", () => setOverview(true));
+    }
+    if (els.btnSingle) {
+      els.btnSingle.addEventListener("click", () => setOverview(false));
     }
 
     els.slider.addEventListener("input", (event) => {
