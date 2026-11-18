@@ -479,7 +479,7 @@
       fillTimeSelect();
 
       let index = previousStamp ? frameForStamp(previousStamp) : -1;
-      if (index < 0) index = state.frames.length - 1;
+      if (index < 0) index = 0;
       showFrame(index, Boolean(opts.forceReload));
 
       if (!opts.silent) {
