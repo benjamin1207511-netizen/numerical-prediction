@@ -47,8 +47,8 @@ LOG_FILE = BASE_DIR / "auto_update.log"
 TZ_CN = timezone(timedelta(hours=8))
 UTC = timezone.utc
 POLL_SECONDS = 30 * 60
-# 数据源：ecmwf = ECMWF Open Data 直连（默认）；openmeteo = Open-Meteo
-SOURCE = os.environ.get("BAMC_SOURCE", "ecmwf").strip().lower()
+# 数据源：固定 Open-Meteo（ECMWF Open Data 已移除）
+SOURCE = "openmeteo"  # 只使用 Open-Meteo，不再支持 ECMWF Open Data
 if SOURCE not in ("ecmwf", "openmeteo"):
     SOURCE = "ecmwf"
 # 单次更新失败（多半是网络抖动）后的重试次数与等待秒数，可用环境变量覆盖。
@@ -279,12 +279,7 @@ def run_once(force: bool = False, dry_run: bool = False) -> bool:
     current = live_run()
     log("当前线上起报场：%s" % (current.strftime("%Y-%m-%d %H:%M UTC") if current else "无"))
 
-    if SOURCE == "ecmwf":
-        import ecmwf_open
-
-        latest_text = ecmwf_open.latest_run(log=log)
-    else:
-        latest_text = ecmwf_chart.latest_run()
+    latest_text = ecmwf_chart.latest_run()
     latest = parse_run(latest_text)
     if not latest:
         raise RuntimeError("无法解析最新起报场：%s" % latest_text)

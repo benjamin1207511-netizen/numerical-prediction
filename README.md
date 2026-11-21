@@ -2,7 +2,7 @@
 
 以 ECMWF IFS 预报图为主的轻量网站：24 类产品，每天 **00Z / 12Z** 两个起报场，从 +24h 到 +240h 每 6 小时一帧，共 37 帧。
 
-- **数据源：ECMWF Open Data 直连**（`data.ecmwf.int`，IFS 0.25° GRIB2）；Open-Meteo 作为备用
+- **数据源：只使用 Open-Meteo**（`api.open-meteo.com` / `single-runs-api.open-meteo.com`，ECMWF IFS 0.25°）；不再连接 ECMWF Open Data
 - 华南区域：**16–28°N、105–121°E**（0.5° 输入、0.25° 绘图）
 - 综合图与 500hPa 风场另有东亚版：**0–50°N、80–140°E**（0.5° 绘图）
 - 纯 Python 标准库后端，无数据库；图像为预生成 PNG，更新后热切换，站点无需重启
@@ -20,10 +20,9 @@ python server.py
 站点运行只需要 Python 标准库；`ecmwf/` 里是预生成的预报图。生成/更新图片需要：
 
 ```bash
-python -m pip install numpy scipy matplotlib cartopy eccodes
+python -m pip install numpy scipy matplotlib cartopy
 ```
 
-`eccodes` 只在直连 ECMWF Open Data 时需要（`--source openmeteo` 不需要）。
 
 ## 产品
 
@@ -86,16 +85,16 @@ Windows 也可以：
 
 更新器要点：
 
-- 数据源默认 `ecmwf`（ECMWF Open Data 直连），可用 `BAMC_SOURCE=openmeteo` 切回 Open-Meteo；
+- 数据源固定为 **Open-Meteo**，不再支持 ECMWF Open Data；
 - 只使用 **00Z / 12Z** 且已经更新到 +240h 的完整场次，半截场次自动跳过；
-- Open-Meteo 模式下载按 200 点分块并缓存到 `_cache/chunks/`，断网后重跑不重复下载；
+- 下载按 120 点分块并缓存到 `_cache/chunks/`，断网后重跑不重复下载；
 - 单次失败自动重试 3 次（`BAMC_BUILD_RETRIES` / `BAMC_RETRY_WAIT` 可调）；
 - 图片先写入 `ecmwf_build/`，校验通过后整体替换，成功后清理缓存与旧图；
 - 每次发布后自动删除旧场次图片，**磁盘上只保留最新一组 24×37 张**（`prune_live`）。
 
 每个产品还会额外生成一张 **总览图**（`overview_<run>.png`）：把 +24h…+240h 每 12 小时一帧
-（共 19 帧）裁出地图区拼成 5×4 网格，右侧是共享色标，用于快速看整段时间演变。
-站点在产品页的时间轴右侧有「总览」按钮，点开即显示；切换产品/帧会自动退出总览。
+（共 19 帧）裁出地图区拼成 5×4 网格，底部是共享色标，用于快速看整段时间演变。
+站点在产品页的时间轴右侧有「单帧 / 总览」切换，点开即显示；切换产品/帧会自动回到单帧。
 
 ```bash
 python ecmwf_chart.py --overview-only --run 2026-11-16T00:00   # 不重绘，只用已有单帧重做总览
@@ -105,8 +104,7 @@ python ecmwf_chart.py --no-overview                            # 本次不生成
 手动生成：
 
 ```bash
-python ecmwf_chart.py                                  # 默认 ecmwf 源，自动选最新完整场次
-python ecmwf_chart.py --source openmeteo               # 改用 Open-Meteo
+python ecmwf_chart.py                                  # Open-Meteo 源，自动选最新完整场次
 python ecmwf_chart.py --run 2026-11-07T12:00           # 指定场次
 python ecmwf_chart.py --products cloud --jobs 1        # 只出云量，单进程
 ```
@@ -115,28 +113,20 @@ python ecmwf_chart.py --products cloud --jobs 1        # 只出云量，单进�
 
 - 渲染默认多进程并行（`min(4, CPU-1)`），可用 `--jobs N` 指定；
   多进程不可用时自动退回线程，再不行退回单进程。
-- Open Data 模式按 step 并发下载（`BAMC_OPEN_WORKERS`，默认 4）；
   Open-Meteo 模式 3 路并发，`BAMC_FETCH_WORKERS` 可调，遇到 429 自动退避。
 - 出图默认 **140 dpi**（1400×1008，比 160 dpi 小约 25%、快约 20%，画质略软）；
   想更清晰可把 `ecmwf_chart.py` 里 `fig.savefig(..., dpi=140)` 改回 160。
 
-## 数据源：ECMWF Open Data
+## 数据源：Open-Meteo
 
-`ecmwf_open.py` 直连 `https://data.ecmwf.int/forecasts/…/ifs/0p25/oper/`：
+站点只使用 Open-Meteo 的 ECMWF IFS 0.25° 数据，不再连接 ECMWF Open Data。
 
-- 用每个 step 的 `.index` 文件查字节偏移，**Range 请求只取需要的 22 个字段**；
-  一个 step 约 11–12 MB，一轮 00Z/12Z 全部 37+ 帧约 **420–450 MB**；
-- 用 `eccodes` 解码 GRIB2，按 0.25° 经纬度网格采样到站点用的地点网格；
-- 时间步：+0 到 +144 为 3 小时、之后 6 小时；本项目只取 6 小时间隔；
-- 变量对应：`2t/2d/tp/msl/10u/10v/10fg/mucape/tcwv/tcc/gh500/t,r,d,u,v@500·700·850·925`；
-  其中 **CAPE 用 `mucape`（最不稳定 CAPE）近似**，其余为 ECMWF 原始字段；
-- 2m 相对湿度由 `2t/2d` 计算，K 指数、24h 降水/阵风由逐时序列本地统计；
-- 本机 TLS 链被中间代理改写，`ecmwf_open.py` 对 `data.ecmwf.int` 使用宽松校验
-  （公开只读数据，仅影响该域名）。
+- 主接口 `api.open-meteo.com`（最新场次），单场次接口 `single-runs-api.open-meteo.com`（指定 00Z/12Z）；
+- 变量按 3 组（10/10/8 个）请求华南 825 个点、东亚 525 个点，分块 120 点并发下载并缓存到 `_cache/chunks/`；
+- 2m 相对湿度、露点、θse、K 指数、24h 降水/阵风等由逐时序列本地计算；
+- 没有 API key 即可使用，但受免费额度限制，具体见下一节。
 
-Open Data 无需 API key、无调用配额；代价是每轮要下载几百 MB 数据。
-
-## Open-Meteo 限额与用量（备用源）
+## Open-Meteo 限额与用量
 
 数据来自 Open-Meteo 免费接口（非商业用途），官方限额：
 
@@ -167,12 +157,9 @@ Open Data 无需 API key、无调用配额；代价是每轮要下载几百 MB �
 如果想把额度压到 1/2.2，可以把华南的 3 个变量组合并成 1 组（地点数不变，cost 只算一次）：
 `825 + 525 = 1,350/次`，每天两次仅 **2,700（27%）**，一天跑 4 次也只占 54%。代价是单次响应约 6 MB。
 
-> 切换数据源时注意：`auto_update.py` 只比较场次号，同场次换源会被跳过，必须加 `--force`：
-> `BAMC_SOURCE=openmeteo python auto_update.py --once --force`
-
 如果继续加大范围/精度（地点数翻倍，额度也翻倍）、或站点对外公开/商用，
 建议购买 Open-Meteo 的 API 套餐（`customer-api.open-meteo.com` + key），
-或改成自建 / 直连 ECMWF Open Data。
+或改为自建数据源。
 
 ## 反爬说明
 
@@ -201,7 +188,6 @@ ecmwf-south-china/
 ├─ anti_bot.py           # 反爬模块
 ├─ auto_update.py        # 自动更新器
 ├─ ecmwf_chart.py        # 预报图生成脚本
-├─ ecmwf_open.py         # ECMWF Open Data 直连（GRIB2 + eccodes）
 ├─ blocklist.txt         # 反爬 IP/CIDR 黑名单
 ├─ start.bat             # 启动网站
 ├─ start_auto_update.bat # 常驻自动更新
@@ -240,8 +226,6 @@ cloudflared tunnel --url http://127.0.0.1:8787
 | `ANTIBOT_LOG` | `1` | `0` 关闭拦截日志 |
 | `BAMC_BUILD_RETRIES` | `3` | 自动更新失败重试次数 |
 | `BAMC_RETRY_WAIT` | `120` | 重试间隔秒数 |
-| `BAMC_SOURCE` | `ecmwf` | `ecmwf`（Open Data 直连）/ `openmeteo` |
-| `BAMC_OPEN_WORKERS` | `4` | Open Data 按 step 下载的并发数 |
 | `BAMC_FETCH_WORKERS` | `3` | Open-Meteo 下载并发数 |
 | `BAMC_RENDER_MODE` | `auto` | `auto` / `process` / `thread` / `serial` |
 
