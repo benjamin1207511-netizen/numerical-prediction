@@ -52,7 +52,7 @@ SOURCES = [
 PRODUCTS = [
     {
         "id": "ecmwf-southchina",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "雨+高度+风",
         "title": "ECMWF IFS · 华南综合预报图",
         "kind": "chart",
@@ -66,7 +66,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-southchina-ea",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "雨+高度+风（东亚）",
         "title": "ECMWF IFS · 东亚综合预报图",
         "kind": "chart",
@@ -80,7 +80,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-t2m",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "2m 气温",
         "title": "ECMWF IFS · 华南 2m 气温",
         "kind": "chart",
@@ -94,7 +94,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-theta-se850",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "850hPa 假相当位温",
         "title": "ECMWF IFS · 华南 850hPa 假相当位温与风场",
         "kind": "chart",
@@ -108,7 +108,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-vapor925",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "925hPa 水汽通量",
         "title": "ECMWF IFS · 华南 925hPa 水汽通量",
         "kind": "chart",
@@ -122,7 +122,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-h500",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "500hPa 风场",
         "title": "ECMWF IFS · 华南 500hPa 高度与风场",
         "kind": "chart",
@@ -136,7 +136,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-h500-ea",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "500hPa 风场（东亚）",
         "title": "ECMWF IFS · 东亚 500hPa 高度与风场",
         "kind": "chart",
@@ -150,7 +150,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-rain24",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "24h 降水",
         "title": "ECMWF IFS · 华南 24 小时降水",
         "kind": "chart",
@@ -164,7 +164,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-mslp",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "海平面气压",
         "title": "ECMWF IFS · 华南海平面气压",
         "kind": "chart",
@@ -178,7 +178,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-wind10",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "地面风场",
         "title": "ECMWF IFS · 华南地面风场",
         "kind": "chart",
@@ -192,7 +192,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-wind925",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "925hPa 风场",
         "title": "ECMWF IFS · 华南 925hPa 风场",
         "kind": "chart",
@@ -206,7 +206,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-gust24",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "24h 阵风",
         "title": "ECMWF IFS · 华南 24 小时极大阵风",
         "kind": "chart",
@@ -220,7 +220,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-cape",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "CAPE",
         "title": "ECMWF IFS · 华南 CAPE",
         "kind": "chart",
@@ -234,7 +234,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-kindex",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "K 指数",
         "title": "ECMWF IFS · 华南 K 指数",
         "kind": "chart",
@@ -248,7 +248,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-pwat",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "PWAT",
         "title": "ECMWF IFS · 华南 PWAT",
         "kind": "chart",
@@ -262,7 +262,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-rh2m",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "2m 湿度",
         "title": "ECMWF IFS · 华南 2m 相对湿度",
         "kind": "chart",
@@ -276,7 +276,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-rh500",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "500hPa 湿度",
         "title": "ECMWF IFS · 华南 500hPa 相对湿度",
         "kind": "chart",
@@ -290,7 +290,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-cloud",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "总云量",
         "title": "ECMWF IFS · 华南 总云量",
         "kind": "chart",
@@ -304,7 +304,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-showalter",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "Showalter 指数",
         "title": "ECMWF IFS · 华南 Showalter 指数",
         "kind": "chart",
@@ -318,7 +318,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-wind200",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "200hPa 流线与散度",
         "title": "ECMWF IFS · 华南 200hPa 流线与散度",
         "kind": "chart",
@@ -332,7 +332,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-shear",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "500-925hPa 风切变",
         "title": "ECMWF IFS · 华南 500-925hPa 风切变",
         "kind": "chart",
@@ -346,7 +346,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-tdiff",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "850-500hPa 温差",
         "title": "ECMWF IFS · 华南 850-500hPa 温差",
         "kind": "chart",
@@ -360,7 +360,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-vort500",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "500hPa 涡度+风",
         "title": "ECMWF IFS · 华南 500hPa 涡度与风场",
         "kind": "chart",
@@ -374,7 +374,7 @@ PRODUCTS = [
     },
     {
         "id": "ecmwf-theta-diff",
-        "source": "ecmwf",
+        "source": "openmeteo",
         "name": "θse 500-850hPa 差",
         "title": "ECMWF IFS · 华南 θse(500-850hPa)",
         "kind": "chart",
@@ -607,7 +607,7 @@ class Handler(BaseHTTPRequestHandler):
                 "product": pid,
                 "title": product["title"],
                 "source": product["source"],
-                "sourceName": "ECMWF IFS",
+                "sourceName": "ECMWF IFS · Open-Meteo",
                 "kind": product["kind"],
                 "interval": product["interval"],
                 "coverage": product["coverage"],
